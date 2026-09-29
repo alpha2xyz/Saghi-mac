@@ -52,9 +52,9 @@ Use Python 3.12 (or any Python whose `pip` can reach PyPI).
 3. Smoke-tests: runs the installer (`SAGHI_NO_LAUNCH=1`, no login item), checks the app and that `saghi` imports, starts the local API headless and checks `/api/health`. The health and install steps must pass.
 4. Tries an Arabic transcription with the macOS `say` voice. This step is allowed to fail (the runner has about 7 GB of RAM), and prints a clear warning if it does.
 5. Zips the bundle, splits it into parts under 2 GB (GitHub's limit per file), and writes `SHA256SUMS`.
-6. Creates or updates the release `v<version>` with the parts, `SHA256SUMS` and `Install-Saghi-mac.command`.
+6. Creates or updates the release `v<version>` with the parts, `SHA256SUMS`, `Install-Saghi-mac.command` and `Install-Saghi-mac.zip` (the same installer in a zip, which keeps its run permission).
 
-The end-user installer `Install-Saghi-mac.command` downloads those parts with `curl`, verifies them, joins them and runs the bundled `install-saghi.command`.
+The end-user installer `Install-Saghi-mac.command` downloads those parts with `curl` (32 parallel byte-range connections, because GitHub limits the speed of each single connection), verifies them, joins them and runs the bundled `install-saghi.command`.
 
 ## Running the tests
 

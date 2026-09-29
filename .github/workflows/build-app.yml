@@ -144,6 +144,8 @@ jobs:
           { shasum -a 256 "${ZIP}".part-*; echo "${ZIP_SHA}  ${ZIP}"; } > SHA256SUMS
           cp ../saghi-mac/packaging/Install-Saghi-mac.command .
           chmod +x Install-Saghi-mac.command
+          # A zip keeps the run permission that browsers strip from a bare .command download.
+          ditto -c -k --sequesterRsrc Install-Saghi-mac.command Install-Saghi-mac.zip
           ls -la
           cat SHA256SUMS
           df -h /
@@ -158,10 +160,10 @@ jobs:
             for a in $(gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '^Saghi-mac-.*\.zip\.part-' || true); do
               gh release delete-asset "$TAG" "$a" -y
             done
-            gh release upload "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command --clobber
+            gh release upload "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip --clobber
           else
-            gh release create "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command \
+            gh release create "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip \
               --title "Saghi-mac ${TAG}" --latest \
-              --notes "Free Arabic voice typing for Apple-silicon Macs. Download Install-Saghi-mac.command and double-click it. See the README for the first-run steps."
+              --notes "Free Arabic voice typing for Apple-silicon Macs. Download Install-Saghi-mac.zip, unzip it, and double-click Install-Saghi-mac.command. See the README for the first-run steps."
           fi
           gh release view "$TAG"

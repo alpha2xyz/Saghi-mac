@@ -16,11 +16,12 @@ Hold a hotkey, speak Arabic, let go. Saghi-mac turns your speech into clean text
 ## Install
 
 1. Open the latest release: https://github.com/alpha2xyz/Saghi-mac/releases/latest
-2. Download `Install-Saghi-mac.command` from the release assets.
+2. Download `Install-Saghi-mac.zip` from the release assets, then double-click it to unzip. You get `Install-Saghi-mac.command`.
 3. Double-click it. The first time, macOS Gatekeeper will block it because it is not signed:
    - macOS 15 (Sequoia) or newer: double-click the file, then open System Settings, Privacy & Security, scroll down and click **Open Anyway**, then confirm.
    - macOS 13 or 14: Control-click the file, choose **Open**, then click **Open** again.
-4. The installer downloads the app (several GB), checks it, and installs Saghi to `~/Applications/Saghi.app`. It needs an internet connection only for this step. No admin password is needed.
+   - If macOS says the file "could not be executed because you do not have appropriate access privileges", open Terminal and run: `bash ~/Downloads/Install-Saghi-mac.command`
+4. The installer downloads the app (about 4 GB), checks it, and installs Saghi to `~/Applications/Saghi.app`. It needs an internet connection only for this step. No admin password is needed.
 5. It asks if you want Saghi to start at login (default: no).
 
 To install a specific version, run the installer with `SAGHI_RELEASE_TAG=v0.1.0`.
@@ -85,11 +86,12 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 ## التثبيت
 
 1. افتح أحدث إصدار: https://github.com/alpha2xyz/Saghi-mac/releases/latest
-2. نزّل الملف `Install-Saghi-mac.command` من ملفات الإصدار.
+2. نزّل الملف `Install-Saghi-mac.zip` من ملفات الإصدار، ثم انقر عليه مرتين لفك الضغط. ستحصل على الملف `Install-Saghi-mac.command`.
 3. انقر عليه مرتين. في أول مرة سيمنعه macOS لأنه غير موقّع رقميًا:
    - macOS 15 (Sequoia) أو أحدث: انقر مرتين على الملف، ثم افتح System Settings ثم Privacy & Security، مرّر لأسفل واضغط **Open Anyway**، ثم أكّد.
    - macOS 13 أو 14: اضغط على الملف مع الضغط على Control، اختر **Open**، ثم اضغط **Open** مرة أخرى.
-4. سينزّل المثبّت التطبيق (عدة GB)، ويتحقق منه، ثم يثبّت صاغي في `~/Applications/Saghi.app`. يحتاج الإنترنت في هذه الخطوة فقط، ولا يحتاج كلمة مرور المدير.
+   - إذا ظهرت رسالة بأن الملف "could not be executed because you do not have appropriate access privileges"، افتح Terminal واكتب: `bash ~/Downloads/Install-Saghi-mac.command`
+4. سينزّل المثبّت التطبيق (حوالي 4 GB)، ويتحقق منه، ثم يثبّت صاغي في `~/Applications/Saghi.app`. يحتاج الإنترنت في هذه الخطوة فقط، ولا يحتاج كلمة مرور المدير.
 5. سيسألك إن كنت تريد تشغيل صاغي عند الدخول إلى الجهاز (الافتراضي: لا).
 
 لتثبيت إصدار محدد شغّل المثبّت مع `SAGHI_RELEASE_TAG=v0.1.0`.

@@ -115,12 +115,40 @@ verify_file() {
   fi
 }
 
+# GitHub limits the speed of each single connection, so each part is fetched
+# as many 64 MB byte ranges over 32 parallel connections (SAGHI_PARALLEL to change), then joined in order.
+PARALLEL="${SAGHI_PARALLEL:-32}"
+CHUNK=67108864
+fetch_part() {
+  # $1 = url, $2 = output file
+  local url="$1" out="$2" size n dir
+  size="$(curl -sIL --retry 3 "$url" | tr -d '\r' | awk 'tolower($1)=="content-length:" {v=$2} END {print v}')"
+  if ! printf '%s' "$size" | grep -Eq '^[0-9]+$' || [ "$size" -le "$CHUNK" ]; then
+    curl -fL --retry 5 --progress-bar -o "$out" "$url"
+    return
+  fi
+  n=$(( (size + CHUNK - 1) / CHUNK ))
+  dir="$out.chunks"
+  mkdir -p "$dir"
+  export SAGHI_URL="$url" SAGHI_DIR="$dir" SAGHI_SIZE="$size" SAGHI_CHUNK="$CHUNK" SAGHI_N="$n"
+  seq 0 $((n - 1)) | xargs -P "$PARALLEL" -I{} sh -c '
+    i=$1; s=$((i * SAGHI_CHUNK)); e=$((s + SAGHI_CHUNK - 1))
+    [ "$e" -ge "$SAGHI_SIZE" ] && e=$((SAGHI_SIZE - 1))
+    f="$SAGHI_DIR/c.$(printf %05d "$i")"
+    curl -sfL --retry 8 --retry-all-errors --retry-delay 2 -r "$s-$e" -o "$f" "$SAGHI_URL" || exit 255
+    [ "$(stat -f %z "$f")" -eq $((e - s + 1)) ] || exit 255
+    printf "    %s/%s\n" "$((i + 1))" "$SAGHI_N"
+  ' _ {} || return 1
+  cat "$dir"/c.* > "$out"
+  rm -rf "$dir"
+}
+
 PART_NAMES=()
 while IFS= read -r url; do
   name="${url##*/}"
   say "  - $name"
-  curl -fL --retry 3 --progress-bar -o "$WORK/$name" "$url" \
-    || fail "Download failed: $name" "فشل تنزيل: $name"
+  fetch_part "$url" "$WORK/$name" \
+    || fail "Download failed: $name. Please run the installer again." "فشل تنزيل: $name. أعد تشغيل المثبّت."
   verify_file "$name"
   PART_NAMES+=("$name")
 done < "$WORK/parts.txt"
