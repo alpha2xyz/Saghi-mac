@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Saghi LaunchAgent template -- user-level agent (installs to
+  ~/Library/LaunchAgents/, NOT /Library/LaunchAgents/ or /Library/
+  LaunchDaemons/ -- no admin/root privileges needed or wanted).
+
+  This is a TEMPLATE: install-saghi.command substitutes the two
+  placeholders below (__SAGHI_APP_DIR__, __PY_BIN__) with the real,
+  user-specific install path before copying it to
+  ~/Library/LaunchAgents/io.github.alpha2xyz.saghi-mac.plist -- a plist cannot contain
+  a literal "$HOME" or other shell expansion, so this substitution has to
+  happen at install time, once the real home directory is known.
+
+  Only installed if the user opts in during install (default: no --
+  see install-saghi.command step 4).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.alpha2xyz.saghi-mac</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SAGHI_APP_DIR__/Contents/Resources/venv/bin/__PY_BIN__</string>
+        <string>-m</string>
+        <string>saghi.ui.app</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>__SAGHI_APP_DIR__/Contents/Resources/app</string>
+        <key>SAGHI_MODEL_DIR</key>
+        <string>__SAGHI_APP_DIR__/Contents/Resources/model</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__SAGHI_APP_DIR__/Contents/Resources</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__SAGHI_APP_DIR__/Contents/Resources/launchagent.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__SAGHI_APP_DIR__/Contents/Resources/launchagent.log</string>
+</dict>
+</plist>

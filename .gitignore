@@ -1,0 +1,21 @@
+# Assembled distributable (multi-GB model weights + wheels) — build output, not source
+saghi-mac/packaging/output/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# Dev scratch data from manual screenshot testing
+saghi-mac/dev/_screenshot_scratch/
+
+# macOS
+.DS_Store
+
+# Build output / caches
+saghi-mac/packaging/.cache/
+saghi-mac/model/
+dist/
+*.zip.part-*

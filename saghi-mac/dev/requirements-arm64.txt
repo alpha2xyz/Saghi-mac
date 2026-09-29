@@ -1,0 +1,85 @@
+# Saghi arm64 (Apple Silicon) requirements -- the distribution stack,
+# resolved from live PyPI data on 2026-08-20 (see packaging/
+# build_bundle.py for how it is used).
+#
+# On Apple Silicon there is no need for the old-stack workarounds that
+# Intel Macs need (old transformers, numpy<2, scipy<1.13, a numba shim):
+# current torch ships
+# real arm64 wheels with MPS support, and current transformers
+# (>=5.4.0) natively registers the "cohere_asr" architecture, so
+# engine.py's NATIVE load path (_load_native) is what actually runs on
+# this stack -- none of the dynamic-module-loading / GenerationMixin
+# patch workarounds in the fallback path are needed.
+#
+# macOS floor: torch is deliberately pinned to 2.11.0, NOT the PyPI
+# latest (2.13.0) -- torch dropped macosx_11_0_arm64 wheels starting at
+# 2.12.0 and now ships macosx_14_0_arm64 only. 2.11.0 is the newest
+# release that still publishes an 11.0-floor arm64 wheel. The actual
+# binding floor for this whole stack is macOS 13.0, set by PySide6
+# 6.11.2 (its wheel is tagged cp310-abi3-macosx_13_0_universal2) --
+# every other package here has a floor at or below 13.0, so pinning
+# torch to 2.11.0 keeps the bundle honest about "Apple Silicon M1+,
+# macOS 13+", instead of silently
+# requiring macOS 14 (Sonoma) because "latest torch" was grabbed
+# without checking its wheel tags. Tracking PyPI-latest torch instead
+# would raise the real floor to macOS 14 -- that must be a deliberate
+# decision, not something shipped silently.
+#
+# librosa is NOT a Saghi-code dependency (saghi/engine.py deliberately
+# avoids it -- see _read_and_prepare's docstring) but it IS a hard,
+# unconditional `import librosa` at module load time inside the
+# checkpoint's OWN bundled code (model/processing_cohere_asr.py line 6,
+# model/modeling_cohere_asr.py line 8) -- confirmed by grep. On arm64, numba publishes real
+# prebuilt wheels, so librosa is installed normally here WITH its real
+# dependencies (numba, scikit-learn, joblib, decorator, pooch,
+# lazy_loader, msgpack) -- no shim, no --no-deps.
+
+torch==2.11.0
+transformers==5.15.1
+numpy==2.5.2
+scipy==1.18.0
+soundfile==0.14.0
+soxr==1.1.0
+accelerate==1.14.0
+safetensors==0.8.0
+sentencepiece==0.2.2
+protobuf==7.35.1
+tokenizers==0.22.2
+huggingface_hub==1.28.0
+librosa==1.0.0
+
+# Phase 2 (API server, saghi/api.py). pydantic-core is pinned to the
+# EXACT version pydantic 2.13.4 itself requires (pydantic-core==2.46.4)
+# -- PyPI's own "latest" pydantic-core (2.48.0) is newer than what this
+# pydantic release supports and would be rejected by the resolver.
+fastapi==0.141.1
+starlette==1.6.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+uvicorn==0.52.4
+python-multipart==0.0.32
+
+# Phase 4 (GUI, saghi/ui/) -- PySide6. Latest at resolution time; this
+# is the package that actually sets the bundle's macOS floor (13.0 --
+# see note above). shiboken6/PySide6_Essentials/PySide6_Addons resolve
+# automatically at the matching 6.11.2 version via pyside6's own pins.
+pyside6==6.11.2
+
+# Phase 5 (live dictation). All of these are at PyPI-latest;
+# no Apple-Silicon-specific version exists to move to.
+sounddevice==0.5.6
+pynput==1.8.2
+pyobjc-core==12.2.2
+pyobjc-framework-Cocoa==12.2.2
+pyobjc-framework-Quartz==12.2.2
+pyobjc-framework-ApplicationServices==12.2.2
+pyobjc-framework-CoreText==12.2.2
+six==1.17.0
+
+# Phase 6 (OpenRouter). Also at PyPI-latest.
+httpx==0.28.1
+keyring==25.7.0
+jaraco.classes==3.4.0
+jaraco.functools==4.6.0
+jaraco.context==6.1.2
+more-itertools==11.1.0

@@ -1,0 +1,166 @@
+name: Build app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build and publish (release tag becomes v<version>)"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check version input
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9A-Za-z._-]+$'; then
+            echo "Bad version: $VERSION" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Disk space at start
+        run: df -h /
+
+      - name: Download and verify the model (release model-v1)
+        run: |
+          set -euo pipefail
+          DL="$RUNNER_TEMP/model-dl"
+          MODEL="$RUNNER_TEMP/model-src"
+          mkdir -p "$DL" "$MODEL"
+          gh release download model-v1 --repo "$GITHUB_REPOSITORY" --dir "$DL" \
+            --pattern 'model.safetensors.part-*' \
+            --pattern 'model-config.zip' \
+            --pattern 'SHA256SUMS'
+          ls -la "$DL"
+          cd "$DL"
+          cat model.safetensors.part-aa model.safetensors.part-ab > model.safetensors
+          # SHA256SUMS lists the two parts, model-config.zip and the joined model.safetensors
+          shasum -a 256 -c SHA256SUMS
+          mv model.safetensors "$MODEL/model.safetensors"
+          rm -f model.safetensors.part-*
+          unzip -q model-config.zip -d "$MODEL"
+          rm -rf "$DL"
+          test -f "$MODEL/config.json" || { echo "config.json missing after unzip (zip must have files at its root)" >&2; exit 1; }
+          ls -la "$MODEL"
+          df -h /
+
+      - name: Build the bundle
+        run: |
+          set -euo pipefail
+          SAGHI_MODEL_SRC_DIR="$RUNNER_TEMP/model-src" SAGHI_VERSION="$VERSION" \
+            python3 saghi-mac/packaging/build_bundle.py
+          mv saghi-mac/packaging/output/Saghi-Mac-Portable ./Saghi-Mac-Portable
+          rm -rf "$RUNNER_TEMP/model-src" saghi-mac/packaging/.cache saghi-mac/packaging/output
+          du -sh Saghi-Mac-Portable
+          df -h /
+
+      - name: Install (smoke test, hard failure)
+        run: |
+          set -euo pipefail
+          export SAGHI_NO_LAUNCH=1
+          echo n | bash Saghi-Mac-Portable/install-saghi.command
+          APP="$HOME/Applications/Saghi.app"
+          test -d "$APP" || { echo "Saghi.app was not created" >&2; exit 1; }
+          RES="$APP/Contents/Resources"
+          PYTHONPATH="$RES/app" QT_QPA_PLATFORM=offscreen "$RES/venv/bin/python3.12" -c \
+            "import saghi, saghi.api, saghi.engine, PySide6.QtCore; print('import ok:', saghi.__file__)"
+          df -h /
+
+      - name: Start local API and check health (hard failure)
+        run: |
+          set -euo pipefail
+          RES="$HOME/Applications/Saghi.app/Contents/Resources"
+          PYTHONPATH="$RES/app" SAGHI_MODEL_DIR="$RES/model" SAGHI_DATA_DIR="$RUNNER_TEMP/saghi-data" \
+            nohup "$RES/venv/bin/python3.12" -m saghi.cli serve > "$RUNNER_TEMP/api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/api.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:17865/api/health > "$RUNNER_TEMP/health.json" 2>/dev/null; then
+              echo "health ok:"; cat "$RUNNER_TEMP/health.json"; echo
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not become healthy. Server log:" >&2
+          cat "$RUNNER_TEMP/api.log" >&2
+          exit 1
+
+      - name: Arabic transcription test (soft, the runner has about 7 GB of RAM)
+        continue-on-error: true
+        run: |
+          set +e
+          fail() { echo "::warning::MODEL TEST SKIPPED/FAILED (likely memory): $1"; exit 1; }
+          cd "$RUNNER_TEMP"
+          VOICE="Majed"
+          if ! say -v "$VOICE" -o sample.wav --data-format=LEI16@16000 "مرحبا، هذا اختبار لتطبيق صاغي" 2>say.err; then
+            VOICE="$(say -v '?' | grep ar_ | head -1 | sed -E 's/ {2,}.*//')"
+            if [ -z "$VOICE" ]; then
+              echo "::warning::MODEL TEST SKIPPED: no Arabic voice available for say on this runner"
+              exit 0
+            fi
+            echo "Majed voice missing, using: $VOICE"
+            say -v "$VOICE" -o sample.wav --data-format=LEI16@16000 "مرحبا، هذا اختبار لتطبيق صاغي" || fail "say failed"
+          fi
+          ls -la sample.wav
+          curl -sS --max-time 1500 -F "file=@sample.wav" -F "language=ar" -F "cleanup_level=light" \
+            http://127.0.0.1:17865/api/transcribe -o transcript.json || fail "transcribe request failed"
+          cat transcript.json; echo
+          python3 -c "import json,sys;d=json.load(open('transcript.json'));t=d.get('text');print('TRANSCRIPT:', t);sys.exit(0 if t else 1)" || fail "no transcript in response"
+
+      - name: Stop API and free space
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/api.pid" ]; then kill "$(cat "$RUNNER_TEMP/api.pid")" 2>/dev/null || true; fi
+          tail -n 40 "$RUNNER_TEMP/api.log" 2>/dev/null || true
+          rm -rf "$HOME/Applications/Saghi.app" "$RUNNER_TEMP/saghi-data"
+          df -h /
+
+      - name: Package (zip, split, checksums)
+        run: |
+          set -euo pipefail
+          ZIP="Saghi-mac-v${VERSION}.zip"
+          mkdir -p dist
+          # Stream the zip straight into split so the whole zip never sits on disk
+          # (the runner disk is small).
+          ditto -c -k --keepParent Saghi-Mac-Portable - | split -b 1900m - "dist/${ZIP}.part-"
+          rm -rf Saghi-Mac-Portable
+          cd dist
+          # the checksum of the whole zip = checksum of the parts joined in order
+          ZIP_SHA="$(cat "${ZIP}".part-* | shasum -a 256 | awk '{print $1}')"
+          { shasum -a 256 "${ZIP}".part-*; echo "${ZIP_SHA}  ${ZIP}"; } > SHA256SUMS
+          cp ../saghi-mac/packaging/Install-Saghi-mac.command .
+          chmod +x Install-Saghi-mac.command
+          ls -la
+          cat SHA256SUMS
+          df -h /
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          cd dist
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # remove old part files so a re-run with fewer parts leaves no stale assets
+            for a in $(gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '^Saghi-mac-.*\.zip\.part-' || true); do
+              gh release delete-asset "$TAG" "$a" -y
+            done
+            gh release upload "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command --clobber
+          else
+            gh release create "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command \
+              --title "Saghi-mac ${TAG}" --latest \
+              --notes "Free Arabic voice typing for Apple-silicon Macs. Download Install-Saghi-mac.command and double-click it. See the README for the first-run steps."
+          fi
+          gh release view "$TAG"
