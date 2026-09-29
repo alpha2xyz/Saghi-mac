@@ -98,11 +98,10 @@ jobs:
           cat "$RUNNER_TEMP/api.log" >&2
           exit 1
 
-      - name: Arabic transcription test (soft, the runner has about 7 GB of RAM)
-        continue-on-error: true
+      - name: Arabic transcription test (hard failure)
         run: |
           set +e
-          fail() { echo "::warning::MODEL TEST SKIPPED/FAILED (likely memory): $1"; exit 1; }
+          fail() { echo "::warning::MODEL TEST FAILED: $1"; exit 1; }
           cd "$RUNNER_TEMP"
           VOICE="Majed"
           if ! say -v "$VOICE" -o sample.wav --data-format=LEI16@16000 "مرحبا، هذا اختبار لتطبيق صاغي" 2>say.err; then

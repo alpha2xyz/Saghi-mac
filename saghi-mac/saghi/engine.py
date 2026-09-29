@@ -161,7 +161,7 @@ class SaghiEngine:
         model_dir_str = str(self.model_dir)
         processor = AutoProcessor.from_pretrained(model_dir_str, trust_remote_code=True)
         model = CohereAsrForConditionalGeneration.from_pretrained(
-            model_dir_str, trust_remote_code=True, torch_dtype=torch.float32
+            model_dir_str, torch_dtype=torch.float32
         )
         model.to(self.device)
         model.eval()
@@ -268,6 +268,48 @@ class SaghiEngine:
 
     # ---- transcription -----------------------------------------------
 
+    def _infer_array(self, arr: np.ndarray, sr: int, language: str) -> str:
+        """
+        Run the model on one 16kHz mono float array and return raw text.
+
+        The two stacks need different call shapes:
+        - native (transformers>=5.4, Apple Silicon): the built-in
+          CohereAsrForConditionalGeneration has no `.transcribe()` method,
+          so we follow the model card: processor(...) -> generate() ->
+          processor.decode(), with `audio_chunk_index` so audio longer than
+          the feature extractor's clip limit is split and reassembled.
+        - fallback: the checkpoint's own `model.transcribe(...)` entry point.
+        Caller holds self._lock and wraps this in torch.no_grad().
+        """
+        if self.stack_path == "native":
+            inputs = self._processor(
+                audio=arr, sampling_rate=sr, return_tensors="pt", language=language
+            )
+            audio_chunk_index = inputs.get("audio_chunk_index")
+            inputs = inputs.to(self._model.device, dtype=self._model.dtype)
+            outputs = self._model.generate(**inputs, max_new_tokens=256)
+            text = self._processor.decode(
+                outputs,
+                skip_special_tokens=True,
+                audio_chunk_index=audio_chunk_index,
+                language=language,
+            )
+            if isinstance(text, (list, tuple)):
+                text = text[0] if text else ""
+            return text
+
+        texts = self._model.transcribe(
+            self._processor,
+            language=language,
+            audio_arrays=[arr],
+            sample_rates=[sr],
+            punctuation=True,
+            # Explicit batch_size=1, not config.json's GPU-serving default
+            # of 128: one clip at a time.
+            batch_size=1,
+        )
+        return texts[0]
+
     def transcribe(
         self,
         audio_path: Union[str, Path],
@@ -297,33 +339,15 @@ class SaghiEngine:
 
             t0 = time.time()
             with torch.no_grad():
-                if needs_prep:
-                    # Not already 16kHz mono -- downmix/resample ourselves
-                    # with soundfile+soxr (see _read_and_prepare) and pass
-                    # audio_arrays=[...] with the target sample rate
-                    # already matched, so the model's own internal
-                    # resample branch (which calls librosa.resample, not
-                    # covered by the numba shim -- confirmed empirically:
-                    # `from numba import guvectorize` fails under the
-                    # shim) never runs.
+                if needs_prep or self.stack_path == "native":
+                    # Downmix/resample with soundfile+soxr (see
+                    # _read_and_prepare) so the model's own librosa resample
+                    # branch never runs; the native stack always takes arrays.
                     arr, sr = self._read_and_prepare(audio_path)
-                    texts = self._model.transcribe(
-                        self._processor,
-                        language=language,
-                        audio_arrays=[arr],
-                        sample_rates=[sr],
-                        punctuation=True,
-                        # Explicit batch_size=1, NOT the config default
-                        # (config.json's batch_size is 128, meant for GPU
-                        # serving) -- this is a single clip on a 2-core
-                        # CPU with no RAM headroom.
-                        batch_size=1,
-                    )
+                    raw_text = self._infer_array(arr, sr, language)
                 else:
-                    # Already 16kHz mono -- this exact call shape
-                    # (audio_files=[path]) is the one the benchmark
-                    # validated end-to-end: plain sf.read() internally, no
-                    # resample, no librosa involved at all.
+                    # Fallback stack, already 16kHz mono: the file-path call
+                    # shape validated end-to-end in testing.
                     texts = self._model.transcribe(
                         self._processor,
                         language=language,
@@ -331,9 +355,9 @@ class SaghiEngine:
                         punctuation=True,
                         batch_size=1,
                     )
+                    raw_text = texts[0]
             inference_s = time.time() - t0
 
-        raw_text = texts[0]
 
         from .cleanup import clean_transcript
 
@@ -417,20 +441,9 @@ class SaghiEngine:
 
             t0 = time.time()
             with torch.no_grad():
-                texts = self._model.transcribe(
-                    self._processor,
-                    language=language,
-                    audio_arrays=[arr],
-                    sample_rates=[prepared_sr],
-                    punctuation=True,
-                    # See transcribe()'s array-input branch: explicit
-                    # batch_size=1, not config.json's GPU-serving default
-                    # of 128 -- one segment at a time.
-                    batch_size=1,
-                )
+                raw_text = self._infer_array(arr, prepared_sr, language)
             inference_s = time.time() - t0
 
-        raw_text = texts[0]
 
         from .cleanup import clean_transcript
 
