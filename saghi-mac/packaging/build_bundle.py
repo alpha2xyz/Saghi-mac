@@ -358,7 +358,7 @@ def copy_static_files() -> None:
     shutil.copy2(PACKAGING_DIR / "install-saghi.command", install_script_dest)
     install_script_dest.chmod(0o755)
 
-    for name in ("README_AR.md", "INSTALL_AR.txt", "io.github.alpha2xyz.saghi-mac.plist"):
+    for name in ("README_AR.md", "INSTALL_AR.txt", "io.github.alpha2xyz.saghi-mac.plist", "AppIcon.icns"):
         shutil.copy2(PACKAGING_DIR / name, OUTPUT_DIR / name)
 
     shutil.copy2(REQUIREMENTS_ARM64, OUTPUT_DIR / "requirements-arm64.txt")

@@ -1,3 +1,5 @@
+<p align="center"><img src="saghi-mac/packaging/icon/saghi-icon-1024.png" width="160" alt="Saghi-mac icon"></p>
+
 # Saghi-mac
 
 Free Arabic voice typing for Apple-silicon Macs. It runs fully offline, on your Mac. Your voice never leaves the device.

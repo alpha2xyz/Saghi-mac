@@ -86,6 +86,9 @@ fi
 
 say "   - نسخ كود صاغي..."
 ditto "$BUNDLE_DIR/saghi" "$RES_DIR/app/saghi"
+if [ -f "$BUNDLE_DIR/AppIcon.icns" ]; then
+  cp "$BUNDLE_DIR/AppIcon.icns" "$RES_DIR/AppIcon.icns"
+fi
 
 say "   - نسخ النموذج المحلي (~4.1GB، قد يستغرق دقائق)..."
 rm -rf "$RES_DIR/model"
@@ -114,6 +117,8 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <string>0.1.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>Saghi</string>
     <key>LSMinimumSystemVersion</key>
