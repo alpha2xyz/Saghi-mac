@@ -98,28 +98,9 @@ jobs:
           cat "$RUNNER_TEMP/api.log" >&2
           exit 1
 
-      - name: Arabic transcription test (soft, the free runner has only 7 GB of RAM)
-        continue-on-error: true
-        timeout-minutes: 15
-        run: |
-          set +e
-          fail() { echo "::warning::MODEL TEST FAILED OR TIMED OUT (runner RAM): $1"; exit 1; }
-          cd "$RUNNER_TEMP"
-          VOICE="Majed"
-          if ! say -v "$VOICE" -o sample.wav --data-format=LEI16@16000 "مرحبا، هذا اختبار لتطبيق صاغي" 2>say.err; then
-            VOICE="$(say -v '?' | grep ar_ | head -1 | sed -E 's/ {2,}.*//')"
-            if [ -z "$VOICE" ]; then
-              echo "::warning::MODEL TEST SKIPPED: no Arabic voice available for say on this runner"
-              exit 0
-            fi
-            echo "Majed voice missing, using: $VOICE"
-            say -v "$VOICE" -o sample.wav --data-format=LEI16@16000 "مرحبا، هذا اختبار لتطبيق صاغي" || fail "say failed"
-          fi
-          ls -la sample.wav
-          curl -sS --max-time 600 -F "file=@sample.wav" -F "language=ar" -F "cleanup_level=light" \
-            http://127.0.0.1:17865/api/transcribe -o transcript.json || fail "transcribe request failed"
-          cat transcript.json; echo
-          python3 -c "import json,sys;d=json.load(open('transcript.json'));t=d.get('text');print('TRANSCRIPT:', t);sys.exit(0 if t else 1)" || fail "no transcript in response"
+      # No transcription test here: the free runner has 7 GB of RAM, and the
+      # 4 GB model either times out or gets the job killed (exit 143). The
+      # Arabic test runs on a real Apple-silicon Mac before each release.
 
       - name: Stop API and free space
         if: always()
