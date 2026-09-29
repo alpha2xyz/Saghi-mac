@@ -133,6 +133,13 @@ def build(argv: Optional[list] = None) -> AppContext:
     app = QApplication.instance() or QApplication(list(argv) if argv is not None else sys.argv)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
     app.setQuitOnLastWindowClosed(False)  # tray app: closing the window must not end the process
+    # Dock / app-switcher icon while running (the process is python3.12, so
+    # macOS would otherwise show a generic icon instead of the Saghi icon).
+    from PySide6.QtGui import QIcon
+
+    from .tray import _ICON_PATH
+
+    app.setWindowIcon(QIcon(str(_ICON_PATH)))
 
     settings_manager = SettingsManager()
 
