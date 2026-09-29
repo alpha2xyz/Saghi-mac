@@ -12,6 +12,7 @@ manual left/right juggling needed here.
 
 from __future__ import annotations
 
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -29,9 +30,13 @@ from .filejob_page import FileJobPage
 from .history_page import HistoryPage
 from .settings_page import SettingsPage
 
+# Colours come from the system palette (palette(...)), never hard-coded, so
+# the window follows macOS light and dark mode. The stylesheet is re-applied
+# when the palette changes (see changeEvent) so a live switch also updates.
 _QSS = """
 QListWidget {
-    background: #fafafa;
+    background: palette(window);
+    color: palette(text);
     border: none;
     outline: none;
     font-size: 14px;
@@ -43,33 +48,47 @@ QListWidget::item {
     margin: 2px 8px;
 }
 QListWidget::item:selected {
-    background: #4A90D9;
-    color: white;
+    background: palette(highlight);
+    color: palette(highlighted-text);
 }
 #headerBar {
-    background: #ffffff;
-    border-bottom: 1px solid #e0e0e0;
+    background: palette(base);
+    border-bottom: 1px solid palette(mid);
 }
 #appTitle {
     font-size: 16px;
     font-weight: 600;
+    color: palette(text);
 }
 #statusChip {
-    background: #eef2f7;
+    background: palette(button);
     border-radius: 10px;
     padding: 3px 12px;
     font-size: 12px;
-    color: #555555;
+    color: palette(button-text);
 }
 #dropCard {
-    background: #fafbfc;
-    border: 1px dashed #b7c2cf;
+    background: palette(base);
+    border: 1px dashed palette(mid);
     border-radius: 8px;
 }
 """
 
 
 class MainWindow(QMainWindow):
+    def changeEvent(self, event):  # noqa: N802 (Qt API name)
+        # macOS light/dark switch while the app is open: re-resolve palette(...)
+        # references in the stylesheet so no widget keeps the old colours.
+        if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
+            if not getattr(self, "_restyling", False):
+                self._restyling = True
+                try:
+                    self.setStyleSheet("")
+                    self.setStyleSheet(_QSS)
+                finally:
+                    self._restyling = False
+        super().changeEvent(event)
+
     def __init__(self, settings_manager, engine, engine_status: EngineStatusBridge, parent=None):
         super().__init__(parent)
         self.setWindowTitle(strings.APP_TITLE)

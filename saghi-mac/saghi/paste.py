@@ -62,6 +62,30 @@ class PasteResult:
     pasted: bool
 
 
+def accessibility_trusted(prompt: bool = False) -> bool:
+    """
+    Whether macOS lets this process post synthetic key events (Accessibility).
+
+    With prompt=True and no permission yet, macOS shows its standard dialog
+    ("Saghi would like to control this computer") and adds Saghi to
+    System Settings > Privacy & Security > Accessibility, so the user only
+    has to switch it on. Without this permission Cmd+V is silently dropped.
+    Returns True when the check is unavailable (non-macOS, tests).
+    """
+    try:
+        from ApplicationServices import (
+            AXIsProcessTrustedWithOptions,
+            kAXTrustedCheckOptionPrompt,
+        )
+    except Exception:
+        return True
+    try:
+        return bool(AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: bool(prompt)}))
+    except Exception:
+        logger.exception("Accessibility check failed")
+        return True
+
+
 def set_clipboard(text: str) -> bool:
     """Put `text` on the system clipboard via AppKit's NSPasteboard. Returns whether it succeeded."""
     try:

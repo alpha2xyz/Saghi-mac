@@ -150,6 +150,15 @@ def build(argv: Optional[list] = None) -> AppContext:
     dictation = DictationController(engine, engine_status, settings_manager)
     dictation.start()
 
+    # Auto-paste needs the Accessibility permission. Ask macOS to show its
+    # standard prompt on start-up when it is missing (skipped for headless
+    # test runs), otherwise the text only lands on the clipboard.
+    if os.environ.get("QT_QPA_PLATFORM") != "offscreen" and not os.environ.get("SAGHI_NO_PERMISSION_PROMPT"):
+        from ..paste import accessibility_trusted
+
+        if not accessibility_trusted(prompt=True):
+            logger.warning("Accessibility permission missing: auto-paste will not work until it is granted")
+
     def _quit() -> None:
         logger.info("Quitting Saghi -- stopping dictation + API server")
         dictation.stop()
