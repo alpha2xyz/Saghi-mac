@@ -185,8 +185,15 @@ def build(argv: Optional[list] = None) -> AppContext:
         api_thread.stop()
         app.quit()
 
-    tray = SaghiTray(main_window, engine_status, on_quit=_quit, dictation_controller=dictation)
+    tray = SaghiTray(
+        main_window,
+        engine_status,
+        on_quit=_quit,
+        dictation_controller=dictation,
+        settings_manager=settings_manager,
+    )
     tray.show()
+    dictation.open_app_requested.connect(tray.show_main_window)
 
     # In-app updates from GitHub releases (see saghi/updater.py). Checking
     # only happens when asked, or once a day if the user turned that on.
