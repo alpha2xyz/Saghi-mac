@@ -289,23 +289,35 @@ class IndicatorWindow(QWidget):
             painter.end()
 
     def _paint_background(self, painter: QPainter) -> None:
+        # A glass capsule in the macOS 26/27 style: a dark, slightly
+        # see-through pill, a hairline highlight along its top edge (the
+        # "lit glass" rim), and the waveform colour as a soft glowing
+        # border. All deterministic strokes -- no blur filter or drop
+        # shadow (README_AR.md's "بلا ظل").
         rect = QRectF(self.rect()).adjusted(6, 6, -6, -6)
-        radius = 14.0
+        radius = rect.height() / 2
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(20, 20, 24, 235))
+        painter.setBrush(QColor(22, 22, 26, 218))
         painter.drawRoundedRect(rect, radius, radius)
 
-        # Glowing border: a few concentric strokes, increasing alpha toward
-        # the actual edge -- a deterministic approximation of a glow with
-        # no blur filter/graphics effect involved (also NOT a drop shadow --
-        # README_AR.md's "بلا ظل" refers to that, this is the border style).
-        for inset, alpha in ((4.0, 40), (3.0, 70), (2.0, 110), (0.5, 200)):
+        for inset, alpha in ((4.0, 30), (3.0, 55), (2.0, 90), (0.5, 170)):
             pen = QPen(QColor(self._color.red(), self._color.green(), self._color.blue(), alpha))
             pen.setWidthF(1.2)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect.adjusted(-inset, -inset, inset, inset), radius, radius)
+            painter.drawRoundedRect(rect.adjusted(-inset, -inset, inset, inset), radius + inset, radius + inset)
+
+        rim = QPen(QColor(255, 255, 255, 46))
+        rim.setWidthF(1.0)
+        painter.setPen(rim)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        top = QPainterPath()
+        inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
+        r = inner.height() / 2
+        top.moveTo(inner.left() + r, inner.top())
+        top.lineTo(inner.right() - r, inner.top())
+        painter.drawPath(top)
 
     def _paint_waveform(self, painter: QPainter) -> None:
         samples = np.zeros(0, dtype=np.float32)

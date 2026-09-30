@@ -60,7 +60,7 @@ from .. import history, openrouter, paste, paths
 from ..hotkey import HotkeyListener
 from ..recorder import MicUnavailableError, Recorder, is_silent
 from ..settings import SettingsManager
-from . import strings
+from . import sounds, strings
 from .engine_status import EngineStatusBridge
 from .indicator import IndicatorWindow
 
@@ -249,12 +249,16 @@ class DictationController(QObject):
             self.recorder.start(device=settings.microphone)
         except MicUnavailableError as exc:
             logger.warning("Could not start recording: %s", exc)
+            if settings.sound_feedback:
+                sounds.play(sounds.ERROR)
             self.indicator.set_color(settings.waveform_color)
             self.indicator.show_error(strings.INDICATOR_ERROR_MIC)
             self._busy = False
             return
 
         self._recording_active = True
+        if settings.sound_feedback:
+            sounds.play(sounds.START)
         self.indicator.set_style(settings.waveform_style)
         self.indicator.set_color(settings.waveform_color)
         self.indicator.show_recording(self.recorder.level)
@@ -349,12 +353,17 @@ class DictationController(QObject):
         if settings.save_recordings and self._pending_audio is not None and self._pending_audio.size:
             self._save_recording(self._pending_audio)
 
+        if settings.sound_feedback:
+            sounds.play(sounds.DONE)
+
         self._pending_audio = None
         self.indicator.hide_indicator()
         self._busy = False
 
     def _on_transcribe_failed(self, message: str) -> None:
         logger.error("Dictation transcription failed: %s", message)
+        if self._settings_manager.current.sound_feedback:
+            sounds.play(sounds.ERROR)
         self._pending_audio = None
         self.indicator.show_error(strings.INDICATOR_ERROR_GENERIC)
         self._busy = False

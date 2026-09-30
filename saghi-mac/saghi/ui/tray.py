@@ -46,6 +46,12 @@ class SaghiTray(QSystemTrayIcon):
         self._status_action.setEnabled(False)
         menu.addAction(self._status_action)
 
+        # "Check for updates…" -- wired by ui/app.py (connect_updates) to
+        # the UpdateController; hidden until then.
+        self._updates_action = QAction(strings.TRAY_CHECK_UPDATES, menu)
+        self._updates_action.setVisible(False)
+        menu.addAction(self._updates_action)
+
         menu.addSeparator()
 
         # Phase 5: checkable toggle for live dictation, default on. Kept
@@ -74,6 +80,20 @@ class SaghiTray(QSystemTrayIcon):
         self.activated.connect(self._on_activated)
 
         engine_status.status_changed.connect(self._on_status_changed)
+
+    def connect_updates(self, controller) -> None:
+        """Show the "check for updates" item and the tray notice for a found update."""
+        self._updates_action.triggered.connect(controller.open_dialog)
+        self._updates_action.setVisible(True)
+        controller.update_found.connect(self._on_update_found)
+        self.messageClicked.connect(controller.open_dialog)
+
+    def _on_update_found(self, result) -> None:
+        if result.latest is not None:
+            self.showMessage(
+                strings.TRAY_UPDATE_AVAILABLE_TITLE,
+                strings.tray_update_available_message(result.latest.version),
+            )
 
     def _on_status_changed(self, state: str, device: str, stack_path: str) -> None:
         self._status_action.setText(strings.format_tray_engine_line(state, device))

@@ -184,13 +184,13 @@ sm.handle_press(Key.ctrl)
 sm.handle_press(Key.cmd)
 check(rec.events == [], "ctrl+cmd keys do not satisfy an alt+cmd-configured state machine")
 
-# ---- 10. irrelevant keys are ignored entirely ------------------------------
+# ---- 10. keys outside the combo, pressed before the hold, are ignored ----
 
 rec = Recorder()
 sm = rec.make_sm("ctrl+cmd")
 sm.handle_press(Key.space)
 sm.handle_press(Key.ctrl)
-sm.handle_press(Key.shift)  # shift is not part of either preset combo
+sm.handle_press(Key.shift)  # an extra modifier outside ctrl+cmd
 sm.handle_press(Key.cmd)
 check(rec.events == ["hold_started"], f"irrelevant keys (space/shift) never affect the state machine (got {rec.events})")
 sm.handle_release(Key.space)
@@ -217,5 +217,40 @@ try:
     check(False, "constructing with an unsupported combo name should raise")
 except ValueError:
     check(True, "constructing with an unsupported combo name raises ValueError")
+
+# ---- 13. the newer presets (shift+cmd, ctrl+alt, ctrl+shift) --------------
+
+for combo, first, second in (
+    ("shift+cmd", Key.shift_r, Key.cmd_l),
+    ("ctrl+alt", Key.alt_l, Key.ctrl_r),
+    ("ctrl+shift", Key.shift_l, Key.ctrl),
+):
+    rec = Recorder()
+    sm = rec.make_sm(combo)
+    sm.handle_press(first)
+    check(rec.events == [], f"{combo}: no event after only one key")
+    sm.handle_press(second)
+    check(rec.events == ["hold_started"], f"{combo}: hold_started once both keys are down")
+    sm.handle_release(first)
+    check(rec.events == ["hold_started", "hold_ended"], f"{combo}: hold_ended when one key lifts")
+
+# ---- 14. another key pressed mid-hold cancels (it was a shortcut) ---------
+
+rec = Recorder()
+sm = rec.make_sm("ctrl+cmd")
+sm.handle_press(Key.ctrl)
+sm.handle_press(Key.cmd)
+sm.handle_press(Key.space)  # Ctrl+Cmd+Space = macOS emoji picker
+check(rec.events == ["hold_started", "cancelled"], f"a non-modifier key mid-hold cancels (got {rec.events})")
+check(sm.is_holding is False, "is_holding drops to False after the shortcut-cancel")
+sm.handle_press(Key.space)  # key repeat
+check(rec.events == ["hold_started", "cancelled"], "a repeated extra key does not cancel twice")
+sm.handle_release(Key.space)
+sm.handle_release(Key.cmd)
+sm.handle_release(Key.ctrl)
+check(rec.events == ["hold_started", "cancelled"], "the combo's release after a shortcut-cancel is swallowed")
+sm.handle_press(Key.ctrl)
+sm.handle_press(Key.cmd)
+check(rec.events[-1] == "hold_started", "a fresh hold works normally after a shortcut-cancel")
 
 print(f"\nALL PASSED ({_checks} checks)")

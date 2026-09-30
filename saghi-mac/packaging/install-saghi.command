@@ -100,6 +100,9 @@ if ! cp -Rc "$BUNDLE_DIR/model" "$RES_DIR/model" 2>/dev/null; then
 fi
 
 # ---- Info.plist (identifies the process as "Saghi", not "python3.12") -
+# Version comes from the stamp build_bundle.py writes into saghi/_version.py.
+APP_VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$BUNDLE_DIR/saghi/_version.py" 2>/dev/null || true)"
+APP_VERSION="${APP_VERSION:-0.1.0}"
 cat > "$APP_DIR/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -112,9 +115,9 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <key>CFBundleIdentifier</key>
     <string>io.github.alpha2xyz.saghi-mac</string>
     <key>CFBundleVersion</key>
-    <string>0.1.0</string>
+    <string>$APP_VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>$APP_VERSION</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>

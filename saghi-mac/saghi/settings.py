@@ -34,6 +34,25 @@ page):
                                     never validated against a fixed list
     openrouter_instructions  str   default "" -- free-form rephrase
                                     instructions the user writes themselves
+
+    Later additions:
+
+    sound_feedback          bool  default True -- short system sound when a
+                                    dictation starts, finishes, or fails
+    history_retention_days  int   0 | 7 | 30 | 90, default 0 (keep forever);
+                                    older history rows are pruned on start-up
+                                    and whenever this changes
+    auto_check_updates      bool  default False -- ask GitHub once a day
+                                    whether a newer release exists (only a
+                                    notice; nothing is installed without
+                                    the user clicking "update"). Off by
+                                    default so the app stays offline unless
+                                    the user asks otherwise.
+    last_update_check       str   UTC ISO-8601 of the last automatic check,
+                                    "" = never
+    glass_effect            bool  default True -- translucent macOS sidebar
+                                    (ui/macos_glass.py); applies at the next
+                                    launch
 """
 
 from __future__ import annotations
@@ -54,6 +73,10 @@ _FILENAME = "settings.json"
 VALID_CLEANUP_LEVELS = ("none", "light", "medium")
 VALID_WAVEFORM_STYLES = ("bars", "line", "dots", "pulse")
 VALID_LANGUAGES = ("ar", "en")
+# Mirrors hotkey.COMBOS' keys (duplicated so this module keeps zero
+# pynput dependency, see hotkey.py's COMBOS comment).
+VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
+VALID_RETENTION_DAYS = (0, 7, 30, 90)
 
 
 @dataclass
@@ -70,6 +93,11 @@ class Settings:
     openrouter_enabled: bool = False
     openrouter_model: str = ""
     openrouter_instructions: str = ""
+    sound_feedback: bool = True
+    history_retention_days: int = 0
+    auto_check_updates: bool = False
+    last_update_check: str = ""
+    glass_effect: bool = True
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -97,7 +125,7 @@ def _coerce(data: dict) -> Settings:
         s.waveform_style = defaults.waveform_style
     if s.language not in VALID_LANGUAGES:
         s.language = defaults.language
-    if s.hotkey is not None and not isinstance(s.hotkey, str):
+    if s.hotkey not in VALID_HOTKEYS:
         s.hotkey = defaults.hotkey
     if s.microphone is not None and not isinstance(s.microphone, str):
         s.microphone = defaults.microphone
@@ -107,7 +135,22 @@ def _coerce(data: dict) -> Settings:
         s.openrouter_model = defaults.openrouter_model
     if not isinstance(s.openrouter_instructions, str):
         s.openrouter_instructions = defaults.openrouter_instructions
-    for bool_field in ("autopaste", "save_recordings", "launch_at_login", "openrouter_enabled"):
+    if not isinstance(s.last_update_check, str):
+        s.last_update_check = defaults.last_update_check
+    retention = s.history_retention_days
+    if isinstance(retention, bool) or not isinstance(retention, (int, float)) or retention not in VALID_RETENTION_DAYS:
+        s.history_retention_days = defaults.history_retention_days
+    else:
+        s.history_retention_days = int(retention)
+    for bool_field in (
+        "autopaste",
+        "save_recordings",
+        "launch_at_login",
+        "openrouter_enabled",
+        "sound_feedback",
+        "auto_check_updates",
+        "glass_effect",
+    ):
         if not isinstance(getattr(s, bool_field), bool):
             setattr(s, bool_field, getattr(defaults, bool_field))
 

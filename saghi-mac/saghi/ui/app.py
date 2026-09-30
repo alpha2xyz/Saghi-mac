@@ -40,13 +40,14 @@ from typing import Callable, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from .. import paths
+from .. import history, login_item, paths
 from ..engine import SaghiEngine
 from ..settings import SettingsManager
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
 from .mainwindow import MainWindow
 from .tray import SaghiTray
+from .update_dialog import UpdateController
 
 logger = logging.getLogger("saghi.ui.app")
 
@@ -121,6 +122,7 @@ class AppContext:
     api_thread: ApiServerThread
     dictation: DictationController
     quit_fn: Callable[[], None]
+    updates: Optional[UpdateController] = None
 
     def quit(self) -> None:
         self.quit_fn()
@@ -142,6 +144,7 @@ def build(argv: Optional[list] = None) -> AppContext:
     app.setWindowIcon(QIcon(str(_ICON_PATH)))
 
     settings_manager = SettingsManager()
+    _apply_startup_settings(settings_manager)
 
     engine = SaghiEngine(DEFAULT_MODEL_DIR)
     engine_status = EngineStatusBridge(engine)
@@ -174,6 +177,14 @@ def build(argv: Optional[list] = None) -> AppContext:
 
     tray = SaghiTray(main_window, engine_status, on_quit=_quit, dictation_controller=dictation)
     tray.show()
+
+    # In-app updates from GitHub releases (see saghi/updater.py). Checking
+    # only happens when asked, or once a day if the user turned that on.
+    updates = UpdateController(settings_manager, quit_app=_quit)
+    main_window.settings_page.check_updates_requested.connect(updates.open_dialog)
+    tray.connect_updates(updates)
+    updates.start()
+
     main_window.show()
 
     return AppContext(
@@ -186,7 +197,31 @@ def build(argv: Optional[list] = None) -> AppContext:
         api_thread=api_thread,
         dictation=dictation,
         quit_fn=_quit,
+        updates=updates,
     )
+
+
+def _apply_startup_settings(settings_manager: SettingsManager) -> None:
+    """
+    Settings that act on the system rather than on a widget:
+
+      * history retention -- drop entries older than the chosen period.
+      * launch at login -- the LaunchAgent file is the real switch, and the
+        installer can create it too, so either one being on means "on":
+        the file is (re)written and the setting turned on to match.
+    """
+    s = settings_manager.current
+    try:
+        history.prune_older_than(s.history_retention_days)
+    except Exception:  # noqa: BLE001 -- never block start-up on housekeeping
+        logger.exception("Could not prune history on start-up")
+
+    if login_item.is_supported():
+        wanted = s.launch_at_login or login_item.is_enabled()
+        if wanted:
+            login_item.set_enabled(True, model_dir=str(DEFAULT_MODEL_DIR))
+        if wanted != s.launch_at_login:
+            settings_manager.update(launch_at_login=wanted)
 
 
 def main(argv: Optional[list] = None) -> int:
