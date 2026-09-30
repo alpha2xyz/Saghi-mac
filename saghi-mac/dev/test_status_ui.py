@@ -401,7 +401,10 @@ emitted.clear()
 engine_status._poll()
 check(engine_status.state == "ready" and emitted == [], "the bridge polling to ready changes nothing for a ready controller")
 check(history.count() >= 1, "the dictation was saved to history (flow unchanged)")
-worker.wait(2000)
+import shiboken6  # noqa: E402
+
+check(wait_until(lambda: not shiboken6.isValid(worker)),
+      "the finished transcription worker (and the recording it holds) is deleted, not kept until quit")
 
 # ---- 2. pill <-> settings ---------------------------------------------------------
 

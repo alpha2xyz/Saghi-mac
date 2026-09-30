@@ -157,8 +157,14 @@ def build(argv: Optional[list] = None) -> AppContext:
 
     main_window = MainWindow(settings_manager, engine, engine_status)
 
+    # Compared with the last REQUESTED font, not theme.ui_font(): if Amiri
+    # failed to load, theme falls back to "system" and the two would differ
+    # forever, re-running the switch on every unrelated settings change.
+    requested_font = [settings_manager.current.ui_font]
+
     def _on_font_setting(settings) -> None:
-        if settings.ui_font != theme.ui_font():
+        if settings.ui_font != requested_font[0]:
+            requested_font[0] = settings.ui_font
             theme.apply_ui_font(app, settings.ui_font)
             main_window.restyle()
 

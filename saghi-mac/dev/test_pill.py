@@ -686,4 +686,40 @@ shot.show_error(strings.INDICATOR_ERROR_MIC, auto_hide_ms=60000)
 snapshot(shot, "error")
 shot.hide_indicator()
 
+# ---- nearest screen for off-screen points (multi-monitor drags) --------------
+
+from unittest.mock import patch as _patch  # noqa: E402
+
+from PySide6.QtCore import QRect  # noqa: E402
+
+
+class _FakeScreen:
+    def __init__(self, name, rect):
+        self.name, self._rect = name, rect
+
+    def geometry(self):
+        return self._rect
+
+
+_primary = _FakeScreen("A", QRect(0, 0, 1440, 900))
+_second = _FakeScreen("B", QRect(1440, 0, 1920, 1080))
+
+
+def _screen_at(point):
+    for sc in (_primary, _second):
+        if sc.geometry().contains(point):
+            return sc
+    return None
+
+
+with _patch("saghi.ui.indicator.QGuiApplication.screens", return_value=[_primary, _second]), \
+        _patch("saghi.ui.indicator.QGuiApplication.screenAt", side_effect=_screen_at), \
+        _patch("saghi.ui.indicator.QGuiApplication.primaryScreen", return_value=_primary):
+    check(IndicatorWindow._screen_for((2000, 500)).name == "B", "a point on the second screen maps to it")
+    check(IndicatorWindow._screen_for((3398, 1000)).name == "B",
+          "a mid-drag point just past the second screen's right edge stays on that screen (not the primary)")
+    check(IndicatorWindow._screen_for((2400, 1150)).name == "B", "...and just past its bottom edge too")
+    check(IndicatorWindow._screen_for((-40, 300)).name == "A", "a point left of everything maps to the nearest (left) screen")
+    check(IndicatorWindow._screen_for(None).name == "A", "no point -> the primary screen")
+
 print(f"\nALL PASSED ({_checks} checks)")

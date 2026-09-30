@@ -492,9 +492,28 @@ class IndicatorWindow(QWidget):
 
     @staticmethod
     def _screen_for(point: Optional[Tuple[int, int]]):
-        """The screen containing `point`, else the primary one (None if there is no screen at all)."""
-        screen = QGuiApplication.screenAt(QPoint(*point)) if point is not None else None
-        return screen or QGuiApplication.primaryScreen()
+        """
+        The screen containing `point`, else the NEAREST one (None if there is
+        no screen at all). Not the primary screen: mid-drag the raw anchor
+        can sit just past a secondary screen's edge while the cursor is
+        still on it, and falling back to the primary made the pill jump
+        there (and that spot was saved).
+        """
+        screens = QGuiApplication.screens()
+        if point is None or not screens:
+            return QGuiApplication.primaryScreen()
+        p = QPoint(*point)
+        hit = QGuiApplication.screenAt(p)
+        if hit is not None:
+            return hit
+
+        def distance2(screen) -> int:
+            g = screen.geometry()
+            dx = max(g.left() - p.x(), 0, p.x() - g.right())
+            dy = max(g.top() - p.y(), 0, p.y() - g.bottom())
+            return dx * dx + dy * dy
+
+        return min(screens, key=distance2)
 
     @staticmethod
     def _default_center(geo) -> Tuple[int, int]:

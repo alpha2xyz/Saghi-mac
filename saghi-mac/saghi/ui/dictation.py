@@ -529,7 +529,12 @@ class DictationController(QObject):
     def _on_worker_thread_finished(self) -> None:
         # QThread housekeeping only -- UI state is already fully handled by
         # _on_transcribe_finished/_on_transcribe_failed, which always fire
-        # before this (same pattern as filejob_page.py).
+        # before this (same pattern as filejob_page.py). The worker is a
+        # child of this controller and holds the whole recording, so it is
+        # deleted here, or every dictation would stay in memory until quit.
+        worker = self.sender() or self._worker
+        if worker is not None:
+            worker.deleteLater()
         self._worker = None
 
     def _save_recording(self, audio: np.ndarray) -> None:
