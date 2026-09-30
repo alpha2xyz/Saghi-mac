@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np  # noqa: E402
-from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal  # noqa: E402
+from PySide6.QtCore import QEventLoop, QObject, QSize, Qt, QTimer, Signal  # noqa: E402
 from PySide6.QtGui import QColor, QIcon, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication, QWidget  # noqa: E402
 
@@ -655,5 +655,106 @@ bare.set_status("recording")
 check(bare.state == "recording" and not bare.icon().isMask(), "set_status works on its own")
 bare.set_status("ready")
 check(not bare._animation_timer.isActive(), "and stops its timer")
+
+# ---- 4. review fixes -----------------------------------------------------------------
+
+print("\n--- 4. review fixes ---")
+
+
+class _FailingEngine(_FakeEngine):
+    def transcribe_array(self, audio, sr, language="ar", cleanup_level="light"):
+        raise RuntimeError("model file is damaged")
+
+
+# Opening Saghi from the pill is refused mid-dictation (the paste target must not change).
+opens: list = []
+controller.open_app_requested.connect(lambda: opens.append(True))
+controller.recorder = _FakeRecorder(np.zeros(16000, dtype=np.float32))
+controller._on_hold_started()
+pill.open_requested.emit()
+check(opens == [], "an open request while recording is ignored by the controller")
+controller._on_cancelled()
+pill.open_requested.emit()
+check(opens == [True], "...and honoured once idle again")
+
+# A press that starts mid-dictation does not open Saghi on release after the flow ended.
+if _pill_is_real:
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    opened_by_pill: list = []
+    pill.open_requested.connect(lambda: opened_by_pill.append(True))
+    controller._on_hold_started()
+    centre = QPointF(pill.width() / 2, pill.height() / 2)
+    glob = QPointF(pill.mapToGlobal(QPoint(int(centre.x()), int(centre.y()))))
+    press = QMouseEvent(QMouseEvent.Type.MouseButtonPress, centre, glob, Qt.MouseButton.LeftButton,
+                        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    pill.mousePressEvent(press)
+    controller._on_cancelled()  # the flow ends while the button is still down
+    release = QMouseEvent(QMouseEvent.Type.MouseButtonRelease, centre, glob, Qt.MouseButton.LeftButton,
+                          Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+    pill.mouseReleaseEvent(release)
+    check(opened_by_pill == [], "a click that began while recording does not open Saghi when released at rest")
+    # The pill is compact again now: aim at its new centre.
+    centre = QPointF(pill.width() / 2, pill.height() / 2)
+    glob = QPointF(pill.mapToGlobal(QPoint(int(centre.x()), int(centre.y()))))
+    pill.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, centre, glob, Qt.MouseButton.LeftButton,
+                                     Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    pill.mouseReleaseEvent(QMouseEvent(QMouseEvent.Type.MouseButtonRelease, centre, glob, Qt.MouseButton.LeftButton,
+                                       Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+    check(opened_by_pill == [True], "a normal click at rest still opens Saghi")
+
+# A failed first model load does not leave 'loading' on the pill and the menu bar forever.
+bad_engine = _FailingEngine()
+bad_bridge = EngineStatusBridge(bad_engine)
+bad = DictationController(bad_engine, bad_bridge, settings_manager)
+bad._hotkey = _FakeHotkey(settings_manager.current.hotkey)
+bad.recorder = _FakeRecorder(np.ones(16000, dtype=np.float32) * 0.01)
+bad_pill = bad.indicator
+orig_bad_show_error = bad_pill.show_error
+bad_pill.show_error = lambda message, auto_hide_ms=2500: orig_bad_show_error(message, auto_hide_ms=40)
+bad._on_hold_started()
+bad._on_hold_ended()
+check(bad_bridge.state == "loading", "a cold engine is marked loading for the first dictation")
+check(wait_until(lambda: bad.status == "error", 10_000), "the failed load shows an error")
+check(bad_bridge.state == "cold", "the engine bridge drops back to cold after the failed load")
+check(wait_until(lambda: bad.status == "ready"), "after the error the status is ready, not a stuck 'loading'")
+bad_pill.show_error = orig_bad_show_error
+
+# stop() while a transcription is still running: no paste, no history, nothing back on screen.
+slow_done = []
+
+
+class _SlowEngine(_FakeEngine):
+    def transcribe_array(self, audio, sr, language="ar", cleanup_level="light"):
+        import time as _time
+
+        _time.sleep(0.4)
+        slow_done.append(True)
+        return super().transcribe_array(audio, sr, language, cleanup_level)
+
+
+slow_engine = _SlowEngine()
+slow = DictationController(slow_engine, EngineStatusBridge(slow_engine), settings_manager)
+slow._hotkey = _FakeHotkey(settings_manager.current.hotkey)
+slow.recorder = _FakeRecorder(np.ones(16000, dtype=np.float32) * 0.01)
+before = history.count()
+with patch("saghi.paste.paste_text") as mock_paste:
+    slow._on_hold_started()
+    slow._on_hold_ended()
+    check(slow.status == "processing", "(a slow transcription is running)")
+    slow.stop()
+    wait_ms(600)
+    check(slow_done == [True], "(the worker did finish)")
+    check(not mock_paste.called, "stop() during a transcription: nothing is pasted afterwards")
+check(history.count() == before, "...and nothing is written to history")
+check(not slow.indicator.isVisible(), "...and the pill stays off screen")
+
+# The dimmed tray frame carries both densities.
+from saghi.ui import tray as tray_module  # noqa: E402
+
+faded = tray_module._with_opacity(tray_module.sf_symbols.icon("hourglass", 16, mask=True), 0.5)
+sizes = sorted({(p.width(), p.height()) for p in (faded.pixmap(QSize(18, 18), 1.0), faded.pixmap(QSize(18, 18), 2.0))})
+check(len(sizes) == 2 and faded.isMask(), "the dimmed loading frame has 1x and 2x pixmaps and stays a mask")
 
 print(f"\nAll {_checks} checks passed.")

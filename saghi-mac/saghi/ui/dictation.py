@@ -208,6 +208,7 @@ class DictationController(QObject):
         self._recording_active = False
         self._pending_audio: Optional[np.ndarray] = None
         self._worker: Optional[_TranscribeWorker] = None
+        self._stopped = False
 
         # Single status source (see module docstring, STATUS). "" until the
         # first _recompute_status() below, so that pass always publishes.
@@ -226,12 +227,18 @@ class DictationController(QObject):
         self.indicator.state_changed.connect(self._on_indicator_state_changed)
         self.indicator.anchor_moved.connect(self._on_pill_anchor_moved)
         self.indicator.mode_change_requested.connect(self._on_pill_mode_requested)
-        self.indicator.open_requested.connect(self.open_app_requested)
+        self.indicator.open_requested.connect(self._on_pill_open_requested)
 
         self._apply_pill_settings(settings_manager.current)
         self._recompute_status()
 
         settings_manager.on_change(self._on_settings_changed)
+
+    def _on_pill_open_requested(self) -> None:
+        # Opening Saghi activates it, so never mid-dictation: the paste must
+        # still land in the app the user is typing in.
+        if self._status in ("ready", "loading", "disabled", "error"):
+            self.open_app_requested.emit()
 
     # ---- lifecycle ----------------------------------------------------------
 
@@ -245,10 +252,21 @@ class DictationController(QObject):
 
     def stop(self) -> None:
         """Stop the hotkey listener and tear down any in-flight recording. Call at app quit."""
+        self._stopped = True
         self._hotkey.stop()
         if self._recording_active:
             self._recording_active = False
             self.recorder.cancel()
+        worker = self._worker
+        if worker is not None:
+            # A transcription still running must not paste, write history or
+            # bring the pill back after the user chose Quit.
+            for signal in (worker.finished_ok, worker.failed):
+                try:
+                    signal.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+            worker.wait(3000)
         self.indicator.hide_indicator()
         # hide_indicator() leaves the resting pill up in "always" mode; on
         # the way out nothing may stay on screen.
@@ -457,6 +475,8 @@ class DictationController(QObject):
     # ---- transcription completion -------------------------------------------
 
     def _on_transcribe_finished(self, result) -> None:
+        if self._stopped:
+            return
         settings = self._settings_manager.current
 
         paste_result = paste.paste_text(result.text, autopaste=settings.autopaste)
@@ -493,6 +513,13 @@ class DictationController(QObject):
 
     def _on_transcribe_failed(self, message: str) -> None:
         logger.error("Dictation transcription failed: %s", message)
+        if self._stopped:
+            return
+        if not self._engine.is_loaded:
+            # The model never finished loading (missing/corrupt/out of
+            # memory): drop the "loading" state, or the pill and menu-bar
+            # icon would say "loading" forever.
+            self._engine_status.mark_failed()
         if self._settings_manager.current.sound_feedback:
             sounds.play(sounds.ERROR)
         self._pending_audio = None

@@ -302,6 +302,7 @@ class IndicatorWindow(QWidget):
         self._menu: Optional[QMenu] = None
         self._press_global: Optional[QPoint] = None
         self._press_center = (0, 0)
+        self._press_can_open = False
         self._dragging = False
         self._lay = self._measure()
 
@@ -592,6 +593,9 @@ class IndicatorWindow(QWidget):
         self._press_global = event.globalPosition().toPoint()
         self._press_center = self.anchor()
         self._dragging = False
+        # Decided at press time: a press that started mid-dictation must not
+        # open Saghi on release just because the flow finished meanwhile.
+        self._press_can_open = self._state in (STATE_HIDDEN, STATE_ERROR)
         event.accept()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- Qt override naming
@@ -621,7 +625,7 @@ class IndicatorWindow(QWidget):
             # Remember where the pill actually ended up (after clamping).
             self._anchor = self.anchor()
             self.anchor_moved.emit(*self._anchor)
-        elif self._state in (STATE_HIDDEN, STATE_ERROR):
+        elif self._press_can_open and self._state in (STATE_HIDDEN, STATE_ERROR):
             self.open_requested.emit()
 
     def contextMenuEvent(self, event) -> None:  # noqa: N802 -- Qt override naming

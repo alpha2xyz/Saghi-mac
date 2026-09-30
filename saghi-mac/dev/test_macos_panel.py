@@ -173,6 +173,12 @@ class FakePanelWindow(FakeWindow, NSPanel):
         self._rec("setBecomesKeyOnlyIfNeeded_", value)
         self.key_only_if_needed = value
 
+    def respondsToSelector_(self, selector):
+        return selector == b"_setPreventsActivation:" and not getattr(self, "no_private", False)
+
+    def _setPreventsActivation_(self, value):
+        self._rec("_setPreventsActivation_", value)
+
 
 class FakeView(Recorder):
     def __init__(self, frame=None):
@@ -426,6 +432,8 @@ with mac.active():
     check(w.can_hide is False, "canHide is off (Cmd+H keeps the pill)")
     check(w.shadow is False, "no window shadow")
     check(w.log[-1] == ("setLevel_", 25), "the level is set last (setFloatingPanel: would reset it)")
+    check(w.calls("_setPreventsActivation_") == [("_setPreventsActivation_", True)],
+          "the window server's prevents-activation tag is set via the private setter")
 
     # Idempotent: a second call leaves the style mask alone (setStyleMask: can rebuild the view tree).
     check(pin_floating(pill) is True, "second pin_floating still True")

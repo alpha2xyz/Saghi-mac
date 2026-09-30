@@ -428,7 +428,16 @@ class FileJobPage(QWidget):
         self.elapsed_label.setText(strings.filejob_elapsed_text(elapsed_s))
         self.eta_label.setText(strings.filejob_eta_text(eta_s))
 
+    def _settle_engine_status(self) -> None:
+        # _on_start_clicked announced a model load; if the run ended (failed,
+        # or cancelled early) without the model loading, clear "loading" so
+        # the status pill and menu-bar icon don't keep saying so.
+        engine_loaded = bool(getattr(self._engine, "is_loaded", False))
+        if self._engine_status is not None and self._engine is not None and not engine_loaded:
+            self._engine_status.mark_failed()
+
     def _on_finished(self, result: FileJobResult) -> None:
+        self._settle_engine_status()
         self._set_running_ui(False)
         self.result_section.setVisible(True)
         self._last_job_dir = result.job_dir
@@ -442,6 +451,7 @@ class FileJobPage(QWidget):
             self.result_view.setPlainText(result.text)
 
     def _on_failed(self, message: str) -> None:
+        self._settle_engine_status()
         self._set_running_ui(False)
         self.result_section.setVisible(True)
         self.result_view.setPlainText(strings.FILEJOB_ERROR_PREFIX + message)

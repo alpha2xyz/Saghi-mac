@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QGuiApplication, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from . import sf_symbols, strings
@@ -57,20 +57,24 @@ _ANIMATION_INTERVAL_MS = 160  # ~6 fps
 
 
 def _with_opacity(icon: QIcon, opacity: float) -> QIcon:
-    """A mask icon drawn at reduced alpha (the menu bar tints it and keeps the alpha)."""
-    dpr = 2.0
-    screen = QGuiApplication.primaryScreen()
-    if screen is not None:
-        dpr = max(1.0, screen.devicePixelRatio())
-    source = icon.pixmap(QSize(_ICON_SIZE, _ICON_SIZE), dpr)
-    faded = QPixmap(source.size())
-    faded.setDevicePixelRatio(source.devicePixelRatio())
-    faded.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(faded)
-    painter.setOpacity(opacity)
-    painter.drawPixmap(0, 0, source)
-    painter.end()
-    result = QIcon(faded)
+    """A mask icon drawn at reduced alpha (the menu bar tints it and keeps the alpha).
+
+    Built at both 1x and 2x, like sf_symbols.icon(): Qt's status item picks
+    the pixmap from the app-wide devicePixelRatio (the highest of all
+    screens), not the primary screen's, so a single-density frame could be
+    drawn at half size on a mixed Retina/non-Retina setup.
+    """
+    result = QIcon()
+    for dpr in (1.0, 2.0):
+        source = icon.pixmap(QSize(_ICON_SIZE, _ICON_SIZE), dpr)
+        faded = QPixmap(source.size())
+        faded.setDevicePixelRatio(source.devicePixelRatio())
+        faded.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(faded)
+        painter.setOpacity(opacity)
+        painter.drawPixmap(0, 0, source)
+        painter.end()
+        result.addPixmap(faded)
     result.setIsMask(True)
     return result
 

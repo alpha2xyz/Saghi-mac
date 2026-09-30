@@ -129,6 +129,8 @@ def pin_floating(widget) -> bool:
 
         steps += [
             ("mark the pill non-activating", add_nonactivating),
+            # Never raises (see _prevent_activation), so it never fails the pin.
+            ("tag the pill as never activating Saghi", lambda: _prevent_activation(win)),
             ("make the pill a floating panel", lambda: win.setFloatingPanel_(True)),
             ("keep the pill from becoming key", lambda: win.setBecomesKeyOnlyIfNeeded_(True)),
         ]
@@ -142,6 +144,22 @@ def pin_floating(widget) -> bool:
     ]
     results += [_attempt(label, action) for label, action in steps]
     return all(results)
+
+
+def _prevent_activation(win) -> None:
+    """
+    Adding the NonactivatingPanel bit after the panel exists (Qt never sets
+    it at creation) updates AppKit's flag but, per reports on NSPanel
+    internals, not the window server's "prevents activation" tag, which
+    NSPanel only sets while it initialises. The private setter applies that
+    tag now. Best effort: skipped when the selector is missing and never
+    counted as a pinning failure.
+    """
+    try:
+        if win.respondsToSelector_(b"_setPreventsActivation:"):
+            win._setPreventsActivation_(True)
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not set the pill's prevents-activation tag", exc_info=True)
 
 
 def _inset_frame(content, margin: float):
