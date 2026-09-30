@@ -15,10 +15,68 @@ the palette changes (see MainWindow.changeEvent).
 
 from __future__ import annotations
 
+import logging
 import sys
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
 
-from PySide6.QtGui import QColor, QGuiApplication, QPalette
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QPalette
+
+logger = logging.getLogger("saghi.ui.theme")
+
+# ---- interface typeface (settings.ui_font) ------------------------------------
+#
+# Amiri (SIL OFL, ui/assets/fonts/) is the default interface font. It is a
+# book face with a small x-height and tall ascenders, so every size in the
+# stylesheet grows by _AMIRI_BOOST px while it is active (see fs()).
+
+_FONT_DIR = Path(__file__).parent / "assets" / "fonts"
+_AMIRI_BOOST = 2
+_AMIRI_POINT_SIZE = 15.0
+_amiri_family: Optional[str] = None
+_system_font: Optional[QFont] = None
+_ui_font = "system"
+
+
+def load_bundled_fonts() -> Optional[str]:
+    """Register the bundled Amiri files once; returns its family name (None if loading failed)."""
+    global _amiri_family
+    if _amiri_family is None:
+        for name in ("Amiri-Regular.ttf", "Amiri-Bold.ttf"):
+            fid = QFontDatabase.addApplicationFont(str(_FONT_DIR / name))
+            families = QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+            if families:
+                _amiri_family = families[0]
+            else:
+                logger.warning("Could not load bundled font %s", name)
+    return _amiri_family
+
+
+def apply_ui_font(app, choice: str) -> str:
+    """Make `choice` ("amiri" | "system") the application font. Returns the choice actually applied."""
+    global _system_font, _ui_font
+    if _system_font is None:
+        _system_font = QFont(app.font())
+    family = load_bundled_fonts() if choice == "amiri" else None
+    if family:
+        font = QFont(family)
+        font.setPointSizeF(_AMIRI_POINT_SIZE)
+        app.setFont(font)
+        _ui_font = "amiri"
+    else:
+        app.setFont(_system_font)
+        _ui_font = "system"
+    return _ui_font
+
+
+def ui_font() -> str:
+    return _ui_font
+
+
+def fs(px: int) -> int:
+    """A stylesheet/painting font size, enlarged for Amiri."""
+    return px + _AMIRI_BOOST if _ui_font == "amiri" else px
 
 # Saghi's own colours (from packaging/icon/make_icon.py) -- used for the
 # logo-adjacent accents only, never for controls.
@@ -132,19 +190,19 @@ def stylesheet(glass: bool = False) -> str:
     background: {t.separator};
 }}
 #appName {{
-    font-size: 15px;
+    font-size: {fs(15)}px;
     font-weight: 700;
     color: {t.text};
 }}
 #versionLabel {{
-    font-size: 11px;
+    font-size: {fs(11)}px;
     color: {t.text_secondary};
 }}
 QListWidget#nav {{
     background: transparent;
     border: none;
     outline: none;
-    font-size: 13px;
+    font-size: {fs(13)}px;
     color: {t.text};
 }}
 QListWidget#nav::item {{
@@ -161,20 +219,20 @@ QListWidget#nav::item:selected {{
     color: {t.accent_text};
 }}
 #statusChip {{
-    font-size: 12px;
+    font-size: {fs(12)}px;
     color: {t.text_secondary};
 }}
 #pageTitle {{
-    font-size: 22px;
+    font-size: {fs(22)}px;
     font-weight: 700;
     color: {t.text};
 }}
 #pageSubtitle {{
-    font-size: 12px;
+    font-size: {fs(12)}px;
     color: {t.text_secondary};
 }}
 #sectionTitle {{
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: 600;
     color: {t.text_secondary};
     padding: 0px 4px;
@@ -189,23 +247,23 @@ QListWidget#nav::item:selected {{
     border: none;
 }}
 #rowTitle {{
-    font-size: 13px;
+    font-size: {fs(13)}px;
     color: {t.text};
 }}
 #rowHint, #secondaryText {{
-    font-size: 11px;
+    font-size: {fs(11)}px;
     color: {t.text_secondary};
 }}
 #successText {{
-    font-size: 12px;
+    font-size: {fs(12)}px;
     color: {t.success};
 }}
 #errorText {{
-    font-size: 12px;
+    font-size: {fs(12)}px;
     color: {t.danger};
 }}
 #emptyTitle {{
-    font-size: 15px;
+    font-size: {fs(15)}px;
     font-weight: 600;
     color: {t.text};
 }}
@@ -218,12 +276,12 @@ QListWidget#nav::item:selected {{
     border: 1.5px dashed {t.accent};
 }}
 #dropTitle {{
-    font-size: 15px;
+    font-size: {fs(15)}px;
     font-weight: 600;
     color: {t.text};
 }}
 #fileName {{
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: 600;
     color: {t.text};
 }}
@@ -231,7 +289,7 @@ QListWidget#nav::item:selected {{
     background: transparent;
     border: none;
     color: {t.text};
-    font-size: 14px;
+    font-size: {fs(14)}px;
 }}
 QScrollArea#pageScroll, QScrollArea#pageScroll > QWidget > QWidget#scrollBody {{
     background: transparent;

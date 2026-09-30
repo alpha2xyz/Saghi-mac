@@ -193,6 +193,12 @@ class MainWindow(QMainWindow):
                 self._glass = macos_glass.install_glass(self)
                 self._apply_theme()
 
+    def restyle(self) -> None:
+        """Re-apply the stylesheet after a theme input changed (e.g. the interface font)."""
+        self._apply_theme()
+        for widget in self.findChildren(QWidget):
+            widget.updateGeometry()
+
     def _apply_theme(self) -> None:
         self.setStyleSheet("")
         self.setStyleSheet(theme.stylesheet(glass=self._glass))

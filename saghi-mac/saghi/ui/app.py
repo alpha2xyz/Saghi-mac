@@ -45,6 +45,7 @@ from ..engine import SaghiEngine
 from ..settings import SettingsManager
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
+from . import theme
 from .mainwindow import MainWindow
 from .tray import SaghiTray
 from .update_dialog import UpdateController
@@ -145,6 +146,8 @@ def build(argv: Optional[list] = None) -> AppContext:
 
     settings_manager = SettingsManager()
     _apply_startup_settings(settings_manager)
+    # Interface typeface (Amiri by default, bundled) -- before any widget exists.
+    theme.apply_ui_font(app, settings_manager.current.ui_font)
 
     engine = SaghiEngine(DEFAULT_MODEL_DIR)
     engine_status = EngineStatusBridge(engine)
@@ -153,6 +156,13 @@ def build(argv: Optional[list] = None) -> AppContext:
     api_thread.start()
 
     main_window = MainWindow(settings_manager, engine, engine_status)
+
+    def _on_font_setting(settings) -> None:
+        if settings.ui_font != theme.ui_font():
+            theme.apply_ui_font(app, settings.ui_font)
+            main_window.restyle()
+
+    settings_manager.on_change(_on_font_setting)
 
     # Phase 5: live dictation. Started with the app (global hotkey listener
     # begins immediately, default enabled) -- see dictation.py's module

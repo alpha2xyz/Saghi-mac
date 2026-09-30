@@ -311,6 +311,58 @@ INDICATOR_ERROR_GENERIC = "تعذّر الإملاء"
 # Tray menu toggle -- "Enable dictation" (checkable, default on per the task spec).
 TRAY_DICTATION_TOGGLE = "تفعيل الإملاء"
 
+# ---- floating status pill (ui/indicator.py) + menu-bar status ----------------
+
+PILL_READY = "جاهز"
+PILL_LOADING = "جارٍ تحميل النموذج"
+PILL_DISABLED = "الإملاء متوقف"
+PILL_TOOLTIP = "اضغط لفتح صاغي، واسحب لتغيير المكان"
+PILL_MENU_OPEN = "فتح صاغي"
+PILL_MENU_PLACE = "مكان التبويب"
+PILL_PLACE_BOTTOM = "أسفل الشاشة بالنص"
+PILL_PLACE_TOP = "أعلى الشاشة تحت النوتش"
+PILL_MENU_HIDE = "إخفاء التبويب وقت الراحة"
+
+TRAY_SHOW_PILL = "إظهار التبويب العائم دائمًا"
+
+STATUS_LINES = {
+    "ready": "صاغي جاهز",
+    "recording": "صاغي يستمع إليك",
+    "processing": "جارٍ تحويل كلامك إلى نص",
+    "loading": "جارٍ تحميل النموذج",
+    "error": "تعذّر الإملاء",
+    "disabled": "الإملاء متوقف",
+}
+
+
+def status_line(state: str, message: str = "") -> str:
+    """Top line of the menu-bar menu / its tooltip, e.g. 'صاغي جاهز'."""
+    if state == "error" and message:
+        return message
+    return STATUS_LINES.get(state, STATUS_LINES["ready"])
+
+
+def hotkey_hint(hotkey: str) -> str:
+    """'اضغط Control ⌃ + Command ⌘ مطولًا للإملاء' for the menu-bar menu."""
+    label = HOTKEY_LABELS.get(hotkey, HOTKEY_LABELS["ctrl+cmd"])
+    return f"اضغط {label} مطولًا للإملاء"
+
+
+SETTINGS_PILL_LABEL = "التبويب العائم"
+SETTINGS_PILL_HINT = "كبسولة صغيرة تبيّن حالة صاغي، تسحبها لأي مكان وتضغطها لفتح صاغي"
+SETTINGS_PILL_RESET = "إرجاعه لمكانه"
+SETTINGS_UI_FONT_LABEL = "خط الواجهة"
+SETTINGS_UI_FONT_HINT = "Amiri خط عربي رسمي مضمّن في صاغي"
+UI_FONT_LABELS = {
+    "amiri": isolate_ltr("Amiri"),
+    "system": "خط النظام",
+}
+
+PILL_MODE_LABELS = {
+    "always": "دائمًا ظاهر",
+    "active": "أثناء الإملاء فقط",
+}
+
 
 # ---- updates (ui/update_dialog.py, tray) -------------------------------------
 
