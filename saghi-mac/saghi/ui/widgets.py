@@ -12,7 +12,7 @@ Small reusable pieces of the macOS-style design (see theme.py):
   DragArea       an empty strip that moves the window when dragged (the
                  title bar is merged into the content on macOS, see
                  macos_glass.py).
-  icon(name)     simple line icons drawn with QPainter, tinted per theme.
+  icon(name)     SF Symbol icons (see sf_symbols.py), tinted per theme.
 
 RTL: every row is a QHBoxLayout, which Qt mirrors automatically under the
 app-wide RightToLeft direction (ui/app.py) -- titles land on the right and
@@ -23,20 +23,18 @@ macOS does in Arabic).
 
 from __future__ import annotations
 
-import math
 from typing import Optional
 
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
-    QPointF,
     QPropertyAnimation,
     QRectF,
     QSize,
     Qt,
     Signal,
 )
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractButton,
     QCheckBox,
@@ -49,7 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import strings, theme
+from . import sf_symbols, strings, theme
 
 
 # ---- switch -----------------------------------------------------------------
@@ -294,98 +292,22 @@ class DragArea(QWidget):
         super().mouseDoubleClickEvent(event)
 
 
-# ---- line icons ----------------------------------------------------------------------
+# ---- icons ---------------------------------------------------------------------------
+# The drawing (native SF Symbols on macOS, QPainter look-alikes elsewhere) lives in
+# sf_symbols.py. This section keeps the short names the pages were written with
+# working; any SF Symbol name passes straight through.
 
-
-def _pen(color: QColor, width: float = 1.6) -> QPen:
-    pen = QPen(color, width)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    return pen
-
-
-def _draw_clock(p: QPainter, s: float, c: QColor) -> None:
-    p.setPen(_pen(c, s * 0.085))
-    r = s * 0.38
-    center = QPointF(s / 2, s / 2)
-    p.drawEllipse(center, r, r)
-    p.drawLine(center, QPointF(s / 2, s / 2 - r * 0.6))
-    p.drawLine(center, QPointF(s / 2 + r * 0.45, s / 2 + r * 0.2))
-
-
-def _draw_wave(p: QPainter, s: float, c: QColor) -> None:
-    p.setPen(_pen(c, s * 0.09))
-    heights = (0.18, 0.4, 0.62, 0.34, 0.5, 0.22)
-    step = s * 0.13
-    x0 = s / 2 - step * (len(heights) - 1) / 2
-    for i, h in enumerate(heights):
-        x = x0 + i * step
-        p.drawLine(QPointF(x, s / 2 - s * h / 2), QPointF(x, s / 2 + s * h / 2))
-
-
-def _draw_gear(p: QPainter, s: float, c: QColor) -> None:
-    center = QPointF(s / 2, s / 2)
-    outer, inner, teeth = s * 0.42, s * 0.31, 8
-    path = QPainterPath()
-    for i in range(teeth * 2):
-        # alternate outer/inner radius with a flat top on each tooth
-        a0 = (i / (teeth * 2)) * 2 * math.pi
-        a1 = ((i + 1) / (teeth * 2)) * 2 * math.pi
-        r = outer if i % 2 == 0 else inner
-        for a in (a0, a1):
-            pt = QPointF(center.x() + r * math.cos(a), center.y() + r * math.sin(a))
-            if path.elementCount() == 0:
-                path.moveTo(pt)
-            else:
-                path.lineTo(pt)
-    path.closeSubpath()
-    p.setPen(_pen(c, s * 0.075))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawPath(path)
-    p.drawEllipse(center, s * 0.12, s * 0.12)
-
-
-def _draw_tray(p: QPainter, s: float, c: QColor) -> None:
-    p.setPen(_pen(c, s * 0.06))
-    # arrow down
-    p.drawLine(QPointF(s / 2, s * 0.14), QPointF(s / 2, s * 0.58))
-    p.drawLine(QPointF(s * 0.34, s * 0.43), QPointF(s / 2, s * 0.59))
-    p.drawLine(QPointF(s * 0.66, s * 0.43), QPointF(s / 2, s * 0.59))
-    # open tray
-    path = QPainterPath(QPointF(s * 0.16, s * 0.6))
-    path.lineTo(QPointF(s * 0.16, s * 0.82))
-    path.lineTo(QPointF(s * 0.84, s * 0.82))
-    path.lineTo(QPointF(s * 0.84, s * 0.6))
-    p.drawPath(path)
-
-
-def _draw_doc(p: QPainter, s: float, c: QColor) -> None:
-    p.setPen(_pen(c, s * 0.06))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawRoundedRect(QRectF(s * 0.24, s * 0.14, s * 0.52, s * 0.72), s * 0.08, s * 0.08)
-    for y in (0.36, 0.5, 0.64):
-        p.drawLine(QPointF(s * 0.34, s * y), QPointF(s * 0.66, s * y))
-
-
-_ICONS = {
-    "history": _draw_clock,
-    "filejob": _draw_wave,
-    "settings": _draw_gear,
-    "drop": _draw_tray,
-    "empty": _draw_doc,
+_LEGACY_ICON_NAMES = {
+    "history": "clock",
+    "filejob": "waveform",
+    "settings": "gearshape",
+    "drop": "square.and.arrow.down",
+    "empty": "doc.text",
 }
 
 
 def icon_pixmap(name: str, size: int, color: Optional[QColor] = None, device_pixel_ratio: float = 2.0) -> QPixmap:
-    color = color or QColor(theme.tokens().text)
-    px = QPixmap(int(size * device_pixel_ratio), int(size * device_pixel_ratio))
-    px.setDevicePixelRatio(device_pixel_ratio)
-    px.fill(Qt.GlobalColor.transparent)
-    p = QPainter(px)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    _ICONS[name](p, float(size), color)
-    p.end()
-    return px
+    return sf_symbols.pixmap(_LEGACY_ICON_NAMES.get(name, name), size, color, dpr=device_pixel_ratio)
 
 
 def icon(name: str, size: int = 18) -> QIcon:
