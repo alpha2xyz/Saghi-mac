@@ -3,12 +3,11 @@
 # app's design palette (periwinkle #a9c1ff, pink #ffc3ce, sky #9fd4ff).
 #
 # Font: Amiri Bold (SIL Open Font License 1.1), already shipped with the app in
-# saghi/ui/assets/fonts/. Run from this folder with the app's Python (PySide6 +
-# Pillow):
+# saghi/ui/assets/fonts/. Run from this folder with the app's Python (PySide6):
 #
 #     QT_QPA_PLATFORM=offscreen python3 make_icon.py
 #
-# Writes saghi-icon-1024.png here, ../AppIcon.icns (all sizes, via Pillow) and
+# Writes saghi-icon-1024.png here, ../AppIcon.icns (every size, no extra tools) and
 # ../../saghi/ui/assets/saghi.png (512 px, the in-app / Dock icon).
 import math
 import os
@@ -130,15 +129,38 @@ def main() -> int:
         str(HERE.parent.parent / "saghi" / "ui" / "assets" / "saghi.png")
     )
 
-    try:
-        from PIL import Image
-
-        Image.open(out_png).save(HERE.parent / "AppIcon.icns")
-    except ImportError:
-        print("Pillow is missing: AppIcon.icns not rebuilt (pip install pillow)", file=sys.stderr)
-        return 1
+    write_icns(img, HERE.parent / "AppIcon.icns")
     print("done")
     return 0
+
+
+# Every PNG-based entry macOS looks for in an .icns: (type, pixel size).
+# icp4/icp5 are the 16/32 px 1x slots (Finder lists, menus); ic11-ic14 are
+# the @2x variants of 16/32/128/256.
+_ICNS_ENTRIES = (
+    (b"icp4", 16), (b"icp5", 32), (b"icp6", 64), (b"ic07", 128), (b"ic08", 256),
+    (b"ic09", 512), (b"ic10", 1024), (b"ic11", 32), (b"ic12", 64), (b"ic13", 256), (b"ic14", 512),
+)
+
+
+def write_icns(img: QImage, path: Path) -> None:
+    """Write an .icns (big-endian 'icns' container of PNG entries) without extra tools."""
+    import struct
+
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+    chunks = []
+    for kind, px in _ICNS_ENTRIES:
+        scaled = img.scaled(px, px, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        data = QByteArray()
+        buf = QBuffer(data)
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        scaled.save(buf, "PNG")
+        buf.close()
+        png = bytes(data)
+        chunks.append(kind + struct.pack(">I", len(png) + 8) + png)
+    body = b"".join(chunks)
+    path.write_bytes(b"icns" + struct.pack(">I", len(body) + 8) + body)
 
 
 if __name__ == "__main__":

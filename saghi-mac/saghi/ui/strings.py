@@ -352,7 +352,7 @@ SETTINGS_PILL_LABEL = "التبويب العائم"
 SETTINGS_PILL_HINT = "كبسولة صغيرة تبيّن حالة صاغي، تسحبها لأي مكان وتضغطها لفتح صاغي"
 SETTINGS_PILL_RESET = "إرجاعه لمكانه"
 SETTINGS_UI_FONT_LABEL = "خط الواجهة"
-SETTINGS_UI_FONT_HINT = "Amiri خط عربي رسمي مضمّن في صاغي"
+SETTINGS_UI_FONT_HINT = f"خط عربي رسمي ({isolate_ltr('Amiri')}) مضمّن في صاغي"
 UI_FONT_LABELS = {
     "amiri": isolate_ltr("Amiri"),
     "system": "خط النظام",

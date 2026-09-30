@@ -37,6 +37,7 @@ _AMIRI_PIXEL_SIZE = 15
 _amiri_family: Optional[str] = None
 _system_font: Optional[QFont] = None
 _ui_font = "system"
+_NATIVE_FIXED_HEIGHT = ("QPushButton", "QComboBox", "QLineEdit")
 
 
 def load_bundled_fonts() -> Optional[str]:
@@ -66,6 +67,15 @@ def apply_ui_font(app, choice: str) -> str:
         # stylesheet's px sizes.
         font.setPixelSize(_AMIRI_PIXEL_SIZE)
         app.setFont(font)
+        if sys.platform == "darwin":
+            # macOS draws push buttons, pop-ups and text fields at fixed
+            # native heights (qmacstyle: 32 / 26 / 21 px) sized for the
+            # system font's line; Amiri's much taller line (27 px at 15 px)
+            # clips inside them and turns push buttons into square bezels.
+            # Those native controls keep the system font; everything else
+            # is Amiri.
+            for cls in _NATIVE_FIXED_HEIGHT:
+                app.setFont(_system_font, cls)
         _ui_font = "amiri"
     else:
         app.setFont(_system_font)

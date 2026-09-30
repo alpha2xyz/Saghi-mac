@@ -465,4 +465,18 @@ except RuntimeError:
 sm2.update(floating_pill_mode="always")
 check(sm2.current.floating_pill_mode == "always", "later settings changes still work after the page is deleted")
 
+# Amiri everywhere except macOS's fixed-height native controls (they would clip it).
+from saghi.ui import theme  # noqa: E402
+
+with patch.object(sys, "platform", "darwin"):
+    check(theme.apply_ui_font(app, "amiri") == "amiri", "Amiri applies")
+check(QApplication.font().family() == "Amiri", "the app font is Amiri")
+for cls in ("QPushButton", "QComboBox", "QLineEdit"):
+    check(QApplication.font(cls).family() != "Amiri", f"on macOS {cls} keeps the system font (fixed native height)")
+check(QApplication.font("QLabel").family() == "Amiri", "labels stay Amiri")
+check(theme.apply_ui_font(app, "system") == "system", "switching back to the system font")
+check(QApplication.font("QPushButton").family() == QApplication.font().family(), "...clears the per-class fonts")
+check(not strings.SETTINGS_UI_FONT_HINT.lstrip("\u2066")[0].isascii(),
+      "the font hint starts with Arabic, so it right-aligns under its title")
+
 print(f"\nALL PASSED ({_checks} checks)")

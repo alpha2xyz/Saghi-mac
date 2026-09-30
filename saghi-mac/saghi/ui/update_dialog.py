@@ -266,6 +266,11 @@ class UpdateController(QObject):
         QTimer.singleShot(_AUTO_CHECK_FIRST_DELAY_MS, self.maybe_auto_check)
         self._timer.start(_AUTO_CHECK_POLL_MS)
 
+    def restyle(self) -> None:
+        """Re-apply the stylesheet to an open dialog (e.g. after the interface font changed)."""
+        if self._dialog is not None:
+            self._dialog.setStyleSheet(theme.stylesheet())
+
     def open_dialog(self) -> None:
         if self._dialog is None:
             self._dialog = UpdateDialog(self._quit_app)

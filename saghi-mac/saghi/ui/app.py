@@ -167,8 +167,7 @@ def build(argv: Optional[list] = None) -> AppContext:
             requested_font[0] = settings.ui_font
             theme.apply_ui_font(app, settings.ui_font)
             main_window.restyle()
-
-    settings_manager.on_change(_on_font_setting)
+            updates.restyle()  # an open update dialog is a separate top-level window
 
     # Phase 5: live dictation. Started with the app (global hotkey listener
     # begins immediately, default enabled) -- see dictation.py's module
@@ -204,6 +203,7 @@ def build(argv: Optional[list] = None) -> AppContext:
     # In-app updates from GitHub releases (see saghi/updater.py). Checking
     # only happens when asked, or once a day if the user turned that on.
     updates = UpdateController(settings_manager, quit_app=_quit)
+    settings_manager.on_change(_on_font_setting)  # registered once everything it restyles exists
     main_window.settings_page.check_updates_requested.connect(updates.open_dialog)
     tray.connect_updates(updates)
     updates.start()
