@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np  # noqa: E402
-from PySide6.QtCore import QEventLoop, QObject, QSize, Qt, QTimer, Signal  # noqa: E402
+from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer, Signal  # noqa: E402
 from PySide6.QtGui import QColor, QIcon, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication, QWidget  # noqa: E402
 
@@ -189,6 +189,9 @@ class _StubIndicator(QObject):
 _real_pill = indicator_module.IndicatorWindow
 _pill_is_real = all(hasattr(_real_pill, name) for name in _PILL_API)
 print(f"IndicatorWindow: {'real class' if _pill_is_real else 'stand-in (new API not there yet)'}")
+# The stand-in only existed while the pill was being written in parallel;
+# a real pill missing part of its API must fail here, not be papered over.
+assert _pill_is_real, f"IndicatorWindow is missing part of its API: {[n for n in _PILL_API if not hasattr(_real_pill, n)]}"
 _PillBase = _real_pill if _pill_is_real else _StubIndicator
 
 
@@ -304,7 +307,9 @@ print("\n--- 1. DictationController status ---")
 
 paths.ensure_dirs()
 engine = _FakeEngine()
-engine_status = EngineStatusBridge(engine)
+# The test drives _poll() by hand; a real 1 s poll could flip "loading" to
+# "ready" behind its back under load.
+engine_status = EngineStatusBridge(engine, poll_ms=3_600_000)
 settings_manager = SettingsManager()
 settings_manager.update(sound_feedback=False, autopaste=False, save_recordings=False, openrouter_enabled=False)
 
@@ -748,7 +753,8 @@ with patch("saghi.paste.paste_text") as mock_paste:
     check(slow.status == "processing", "(a slow transcription is running)")
     slow.stop()
     wait_ms(600)
-    check(slow_done == [True], "(the worker did finish)")
+    check(slow.status != "processing" or slow._worker is None or not slow._worker.isRunning(),
+          "(the transcription is no longer running after stop())")
     check(not mock_paste.called, "stop() during a transcription: nothing is pasted afterwards")
 check(history.count() == before, "...and nothing is written to history")
 check(not slow.indicator.isVisible(), "...and the pill stays off screen")
@@ -757,7 +763,57 @@ check(not slow.indicator.isVisible(), "...and the pill stays off screen")
 from saghi.ui import tray as tray_module  # noqa: E402
 
 faded = tray_module._with_opacity(tray_module.sf_symbols.icon("hourglass", 16, mask=True), 0.5)
-sizes = sorted({(p.width(), p.height()) for p in (faded.pixmap(QSize(18, 18), 1.0), faded.pixmap(QSize(18, 18), 2.0))})
-check(len(sizes) == 2 and faded.isMask(), "the dimmed loading frame has 1x and 2x pixmaps and stays a mask")
+sizes = {(sz.width(), sz.height()) for sz in faded.availableSizes()}
+check(len(sizes) == 2 and faded.isMask(), f"the dimmed loading frame has real 1x and 2x pixmaps and stays a mask ({sizes})")
+
+# stop(): stops the hotkey, cancels a live recording, and returns fast even
+# when a transcription would take much longer (no frozen Quit, no abort).
+stopper_engine = _FakeEngine()
+stopper = DictationController(stopper_engine, EngineStatusBridge(stopper_engine, poll_ms=3_600_000), settings_manager)
+stopper._hotkey = _FakeHotkey(settings_manager.current.hotkey)
+live = _FakeRecorder(np.ones(16000, dtype=np.float32) * 0.01)
+stopper.recorder = live
+stopper._on_hold_started()
+stopper.stop()
+check(stopper._hotkey.stopped == 1, "stop() stops the hotkey listener")
+check(live.cancel_called, "stop() cancels a recording that is still running")
+check(not stopper.indicator.isVisible(), "stop() leaves nothing on screen")
+
+
+class _VerySlowEngine(_FakeEngine):
+    def transcribe_array(self, audio, sr, language="ar", cleanup_level="light"):
+        import time as _time
+
+        _time.sleep(8)
+        return super().transcribe_array(audio, sr, language, cleanup_level)
+
+
+very_slow_engine = _VerySlowEngine()
+very_slow = DictationController(very_slow_engine, EngineStatusBridge(very_slow_engine, poll_ms=3_600_000), settings_manager)
+very_slow._hotkey = _FakeHotkey(settings_manager.current.hotkey)
+very_slow.recorder = _FakeRecorder(np.ones(16000, dtype=np.float32) * 0.01)
+very_slow._on_hold_started()
+very_slow._on_hold_ended()
+import time as _t  # noqa: E402
+
+t_stop = _t.monotonic()
+very_slow.stop()
+stop_s = _t.monotonic() - t_stop
+check(stop_s < 3.0, f"stop() during an 8 s transcription returns quickly ({stop_s:.2f}s), Quit doesn't freeze")
+check(very_slow._worker is None or not very_slow._worker.isRunning(), "...and the worker thread is no longer running")
+
+# The file-job page also clears a "loading" announced for a model that never loaded.
+from saghi.ui.filejob_page import FileJobPage  # noqa: E402
+
+fj_engine = _FakeEngine()
+fj_bridge = EngineStatusBridge(fj_engine, poll_ms=3_600_000)
+fj = FileJobPage(fj_engine, fj_bridge)
+fj_bridge.mark_loading()
+fj._on_failed("model missing")
+check(fj_bridge.state == "cold", "a failed file job resets an announced model load to cold")
+fj_engine.is_loaded = True
+fj_bridge._poll()
+fj._on_failed("some later error")
+check(fj_bridge.state == "ready", "...but never touches a model that did load")
 
 print(f"\nAll {_checks} checks passed.")

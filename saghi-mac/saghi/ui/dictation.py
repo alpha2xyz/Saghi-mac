@@ -266,7 +266,13 @@ class DictationController(QObject):
                     signal.disconnect()
                 except (RuntimeError, TypeError):
                     pass
-            worker.wait(3000)
+            # Its result is discarded anyway: give it a moment, then end it.
+            # Waiting longer would freeze Quit for as long as inference (or a
+            # cold model load) takes, and letting the QThread object die
+            # while it still runs aborts the process at exit.
+            if not worker.wait(300):
+                worker.terminate()
+                worker.wait(2000)
         self.indicator.hide_indicator()
         # hide_indicator() leaves the resting pill up in "always" mode; on
         # the way out nothing may stay on screen.

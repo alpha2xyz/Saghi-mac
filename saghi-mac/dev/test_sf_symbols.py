@@ -108,6 +108,11 @@ REQUIRED = {
 
 print("--- 1. drawn fallbacks ---")
 
+# Sections 1, 2 and 4 check the drawn look-alikes pixel by pixel, so they
+# must take the drawn path even when this test runs on a Mac with pyobjc
+# (section 3 fakes macOS on its own).
+_REAL_PLATFORM = sys.platform
+sys.platform = "linux"
 sf_symbols._reset_caches()
 check(not sf_symbols.native_available(), "native_available() is False without macOS/pyobjc")
 check(isinstance(sf_symbols.SYMBOLS, frozenset), "SYMBOLS is a frozenset")
@@ -250,6 +255,8 @@ check(big == (0.0, -5.0, 10.0, 0.0), f"undersized arc radii are scaled to fit, g
 # ---- 3. native path, with a fake AppKit ---------------------------------------------
 
 print("--- 3. native path (fake AppKit) ---")
+
+sys.platform = _REAL_PLATFORM
 
 
 def png_of(img: QImage) -> bytes:
@@ -520,6 +527,9 @@ check(not sf_symbols.native_available(), "native_available() is False again afte
 # ---- 4. widgets keeps the old names -------------------------------------------------
 
 print("--- 4. widgets.icon / icon_pixmap ---")
+
+sys.platform = "linux"
+sf_symbols._reset_caches()
 
 for old, new in (("history", "clock"), ("filejob", "waveform"), ("settings", "gearshape"), ("drop", "square.and.arrow.down"), ("empty", "doc.text")):
     pm = widgets.icon_pixmap(old, 24, QColor("#336699"))

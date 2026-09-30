@@ -722,4 +722,40 @@ with _patch("saghi.ui.indicator.QGuiApplication.screens", return_value=[_primary
     check(IndicatorWindow._screen_for((-40, 300)).name == "A", "a point left of everything maps to the nearest (left) screen")
     check(IndicatorWindow._screen_for(None).name == "A", "no point -> the primary screen")
 
+_top = _FakeScreen("T", QRect(0, -1080, 1920, 1080))  # a monitor stacked above
+
+with _patch("saghi.ui.indicator.QGuiApplication.screens", return_value=[_primary, _top]), \
+        _patch("saghi.ui.indicator.QGuiApplication.screenAt",
+               side_effect=lambda pt: next((sc for sc in (_primary, _top) if sc.geometry().contains(pt)), None)), \
+        _patch("saghi.ui.indicator.QGuiApplication.primaryScreen", return_value=_primary):
+    check(IndicatorWindow._screen_for((900, -1100)).name == "T",
+          "a point just above a vertically stacked monitor maps to that monitor (vertical distance counts)")
+
+# ---- timers and the error auto-hide -------------------------------------------------
+
+from PySide6.QtCore import QEventLoop as _Loop, QTimer as _QT  # noqa: E402
+
+
+def _spin(ms: int) -> None:
+    loop = _Loop()
+    _QT.singleShot(ms, loop.quit)
+    loop.exec()
+
+
+timers = IndicatorWindow()
+timers.set_idle_mode("always")
+timers.show_error("خطأ", auto_hide_ms=100)
+timers.show_recording(lambda: (np.zeros(1600, dtype=np.float32), 0.0))
+_spin(300)
+check(timers.state == "recording", "a new recording right after an error is not cut short by the error's auto-hide")
+timers.show_error("خطأ", auto_hide_ms=100)
+timers.show_processing()
+_spin(300)
+check(timers.state == "processing", "...and neither is processing")
+timers.hide_indicator()
+check(not timers._timer.isActive(), "the 30 fps timer is off while the pill rests (no idle CPU use)")
+timers.show_error("خطأ", auto_hide_ms=5000)
+check(not timers._timer.isActive(), "...and while it shows an error")
+timers.hide_indicator()
+
 print(f"\nALL PASSED ({_checks} checks)")
