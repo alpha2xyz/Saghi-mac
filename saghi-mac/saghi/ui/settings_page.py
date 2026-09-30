@@ -42,7 +42,13 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, history, login_item, openrouter
-from ..settings import VALID_HOTKEYS, VALID_RETENTION_DAYS, SettingsManager
+from ..settings import (
+    VALID_HOTKEYS,
+    VALID_PILL_MODES,
+    VALID_RETENTION_DAYS,
+    VALID_UI_FONTS,
+    SettingsManager,
+)
 from . import strings, theme, widgets
 
 logger = logging.getLogger("saghi.ui.settings_page")
@@ -232,6 +238,26 @@ class SettingsPage(QWidget):
             widgets.hbox(*self.color_dots, self.custom_color_dot, self.color_btn, stretch_end=False, spacing=6),
         )
         self._sync_color_dots()
+
+        # The floating pill: when it shows, and a way to put it back where
+        # it started. Both values can also change from outside this page
+        # (dragging the pill, the menu-bar menu), so _on_settings_changed
+        # keeps these two controls in step.
+        self.floating_pill_combo = QComboBox()
+        self.floating_pill_combo.setMinimumWidth(_FIELD_WIDTH - 60)
+        for mode in VALID_PILL_MODES:
+            self.floating_pill_combo.addItem(strings.PILL_MODE_LABELS[mode], mode)
+        self._set_combo_by_data(self.floating_pill_combo, s.floating_pill_mode, fallback_index=0)
+        self.floating_pill_combo.currentIndexChanged.connect(self._on_pill_mode_changed)
+        self.pill_reset_btn = QPushButton(strings.SETTINGS_PILL_RESET)
+        self.pill_reset_btn.setEnabled(s.floating_pill_pos is not None)
+        self.pill_reset_btn.clicked.connect(self._on_pill_reset_clicked)
+        indicator.add_row(
+            strings.SETTINGS_PILL_LABEL,
+            widgets.hbox(self.floating_pill_combo, self.pill_reset_btn, stretch_end=False),
+            strings.SETTINGS_PILL_HINT,
+        )
+        settings_manager.on_change(self._on_settings_changed)
         column.addWidget(widgets.section(strings.SETTINGS_SECTION_INDICATOR, indicator))
 
         # ---- عام ----------------------------------------------------------------
@@ -245,6 +271,16 @@ class SettingsPage(QWidget):
         self.glass_check.setChecked(s.glass_effect)
         self.glass_check.toggled.connect(lambda v: self._sm.update(glass_effect=v))
         general.add_row(strings.SETTINGS_GLASS_LABEL, self.glass_check, strings.SETTINGS_GLASS_HINT)
+
+        # app.py applies ui_font live through its own settings listener; this
+        # control only writes the setting.
+        self.ui_font_combo = QComboBox()
+        self.ui_font_combo.setMinimumWidth(_FIELD_WIDTH - 60)
+        for font in VALID_UI_FONTS:
+            self.ui_font_combo.addItem(strings.UI_FONT_LABELS[font], font)
+        self._set_combo_by_data(self.ui_font_combo, s.ui_font, fallback_index=0)
+        self.ui_font_combo.currentIndexChanged.connect(self._on_ui_font_changed)
+        general.add_row(strings.SETTINGS_UI_FONT_LABEL, self.ui_font_combo, strings.SETTINGS_UI_FONT_HINT)
         column.addWidget(widgets.section(strings.SETTINGS_SECTION_GENERAL, general))
 
         # ---- السجل --------------------------------------------------------------
@@ -399,6 +435,36 @@ class SettingsPage(QWidget):
 
     def _on_waveform_style_changed(self, index: int) -> None:
         self._sm.update(waveform_style=self.waveform_style_combo.itemData(index))
+
+    def _on_pill_mode_changed(self, index: int) -> None:
+        self._sm.update(floating_pill_mode=self.floating_pill_combo.itemData(index))
+
+    def _on_pill_reset_clicked(self) -> None:
+        self._sm.update(floating_pill_pos=None)
+
+    def _on_ui_font_changed(self, index: int) -> None:
+        self._sm.update(ui_font=self.ui_font_combo.itemData(index))
+
+    def _on_settings_changed(self, s) -> None:
+        """
+        Settings listener: the pill's mode and position also change outside
+        this page (dragging the pill, the menu-bar menu). Only reflects the
+        new values in the controls -- signals are blocked while syncing, so
+        nothing is written back and there is no update loop.
+        """
+        try:
+            self.floating_pill_combo.blockSignals(True)
+            try:
+                self._set_combo_by_data(
+                    self.floating_pill_combo, s.floating_pill_mode, fallback_index=self.floating_pill_combo.currentIndex()
+                )
+            finally:
+                self.floating_pill_combo.blockSignals(False)
+            self.pill_reset_btn.setEnabled(s.floating_pill_pos is not None)
+        except RuntimeError:
+            # The page (and its Qt widgets) was deleted while the listener
+            # stayed registered on the settings manager -- nothing to sync.
+            pass
 
     def _on_pick_color(self) -> None:
         color = QColorDialog.getColor(QColor(self._color_value), self, strings.SETTINGS_WAVEFORM_COLOR_LABEL)

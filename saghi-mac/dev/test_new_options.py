@@ -399,4 +399,70 @@ sm.update(last_update_check=datetime.now(timezone.utc).isoformat())
 check(ctl.auto_check_due() is False, "not due again within a day")
 check(ctl.auto_check_due(now=datetime.now(timezone.utc) + timedelta(days=1, minutes=1)) is True, "due again after a day")
 
+# Floating pill + UI font options.
+check(settings._coerce({"ui_font": "x"}).ui_font == "amiri", "an unknown ui_font falls back to amiri")
+check(settings._coerce({"floating_pill_mode": "x"}).floating_pill_mode == "always", "an unknown pill mode falls back to always")
+for bad_pos in ("x", [1], [1, 2, 3], [True, 2], ["a", "b"], [float("nan"), 1], {"x": 1, "y": 2}):
+    check(settings._coerce({"floating_pill_pos": bad_pos}).floating_pill_pos is None, f"a bad floating_pill_pos {bad_pos!r} becomes None")
+check(settings._coerce({"floating_pill_pos": [10.4, 20]}).floating_pill_pos == [10, 20], "a good floating_pill_pos is kept as [int, int]")
+
+check(page.floating_pill_combo.count() == len(settings.VALID_PILL_MODES), "the pill combo offers every mode")
+check(
+    [page.floating_pill_combo.itemData(i) for i in range(page.floating_pill_combo.count())] == list(settings.VALID_PILL_MODES),
+    "the pill combo lists the modes in VALID_PILL_MODES order",
+)
+check(page.floating_pill_combo.currentData() == sm.current.floating_pill_mode == "always", "the pill combo starts on the saved mode")
+page.floating_pill_combo.setCurrentIndex(page.floating_pill_combo.findData("active"))
+check(sm.current.floating_pill_mode == "active", "choosing a pill mode saves it")
+check(json.loads(settings.settings_path().read_text())["floating_pill_mode"] == "active", "…to settings.json")
+_notified = []
+sm.on_change(lambda s: _notified.append(s.floating_pill_mode))
+sm.update(floating_pill_mode="always")
+check(page.floating_pill_combo.currentData() == "always", "an outside change of the pill mode (menu-bar menu) updates the combo")
+check(_notified == ["always"], "…without the page writing anything back (exactly one change notification)")
+
+check(page.pill_reset_btn.isEnabled() is False, "the pill reset button is disabled while no position is saved")
+sm.update(floating_pill_pos=[120, 340])
+check(page.pill_reset_btn.isEnabled() is True, "the pill reset button is enabled once the pill has a saved position")
+page.pill_reset_btn.click()
+check(sm.current.floating_pill_pos is None, "clicking the reset button clears the saved position")
+check(page.pill_reset_btn.isEnabled() is False, "…and disables the button again")
+check(json.loads(settings.settings_path().read_text())["floating_pill_pos"] is None, "…in settings.json too")
+
+page.floating_pill_combo.setCurrentIndex(page.floating_pill_combo.findData("active"))
+sm.update(floating_pill_pos=[5, 6])
+check(page.floating_pill_combo.currentData() == "active", "a position change leaves the pill mode selection alone")
+sm.update(floating_pill_mode="always", floating_pill_pos=None)
+
+sm2 = settings.SettingsManager()
+sm2.update(floating_pill_mode="active", floating_pill_pos=[7, 8], ui_font="system")
+page2 = SettingsPage(sm2)
+check(page2.floating_pill_combo.currentData() == "active", "a new page starts on the saved pill mode")
+check(page2.pill_reset_btn.isEnabled() is True, "…with the reset button enabled for the saved position")
+check(page2.ui_font_combo.currentData() == "system", "…and the saved UI font selected")
+
+check(page.ui_font_combo.count() == len(settings.VALID_UI_FONTS), "the UI font combo offers every font")
+check(
+    [page.ui_font_combo.itemData(i) for i in range(page.ui_font_combo.count())] == list(settings.VALID_UI_FONTS),
+    "the UI font combo lists the fonts in VALID_UI_FONTS order",
+)
+check(page.ui_font_combo.currentData() == "amiri", "the UI font combo starts on the default font")
+page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("system"))
+check(sm.current.ui_font == "system", "choosing the system font saves ui_font")
+check(json.loads(settings.settings_path().read_text())["ui_font"] == "system", "…to settings.json")
+page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("amiri"))
+check(sm.current.ui_font == "amiri", "choosing Amiri saves ui_font")
+
+# A page deleted while its listener is still registered must not raise from it.
+import shiboken6  # noqa: E402
+
+shiboken6.delete(page2)
+try:
+    page2._on_settings_changed(sm2.current)
+    check(True, "the settings listener tolerates a deleted page")
+except RuntimeError:
+    check(False, "the settings listener must tolerate a deleted page")
+sm2.update(floating_pill_mode="always")
+check(sm2.current.floating_pill_mode == "always", "later settings changes still work after the page is deleted")
+
 print(f"\nALL PASSED ({_checks} checks)")
