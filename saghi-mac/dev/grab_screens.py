@@ -167,6 +167,10 @@ def main() -> int:
     # pop-ups are drawn natively by macOS instead (see ui/theme.py).
     app.setStyle("Fusion")
     _set_scheme(app, dark=False)
+    # Same interface font as the real app (ui/app.py build()).
+    from saghi.ui import theme
+
+    theme.apply_ui_font(app, SettingsManager().current.ui_font)
 
     settings_manager = SettingsManager()
     engine = SaghiEngine(DEFAULT_MODEL_DIR)

@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -70,10 +70,26 @@ def _format_created_at(iso_str: str) -> str:
 class _EntryDelegate(QStyledItemDelegate):
     """Paints each entry as a rounded two-line row; the selected one gets the accent capsule."""
 
-    _H = 58
+    # Row height follows the fonts' real line heights: Amiri (the default
+    # interface font) has much taller ascenders/descenders than the system
+    # font, so a fixed height made the two lines overlap.
+    _PAD_Y = 8
+    _GAP = 2
+
+    @staticmethod
+    def _fonts():
+        body = QApplication.font()
+        small = QFont(body)
+        if small.pixelSize() > 0:
+            small.setPixelSize(max(9, small.pixelSize() - 2))
+        else:
+            small.setPointSizeF(max(8.0, small.pointSizeF() - 2))
+        return small, body
 
     def sizeHint(self, option, index) -> QSize:  # noqa: N802 -- Qt override
-        return QSize(option.rect.width(), self._H)
+        small, body = self._fonts()
+        h = QFontMetrics(small).height() + self._GAP + QFontMetrics(body).height() + 2 * self._PAD_Y + 4
+        return QSize(option.rect.width(), h)
 
     def paint(self, painter: QPainter, option, index) -> None:
         t = theme.tokens()
@@ -93,11 +109,10 @@ class _EntryDelegate(QStyledItemDelegate):
 
         primary = QColor(t.accent_text) if selected else QColor(t.text)
         secondary = QColor(255, 255, 255, 200) if selected else QColor(t.text_secondary)
-        text_rect = rect.adjusted(12, 8, -12, -8)
+        text_rect = rect.adjusted(12, self._PAD_Y, -12, -self._PAD_Y)
         align = Qt.AlignmentFlag.AlignRight if option.direction == Qt.LayoutDirection.RightToLeft else Qt.AlignmentFlag.AlignLeft
 
-        small = QApplication.font()
-        small.setPointSizeF(max(8.0, small.pointSizeF() - 2))
+        small, body = self._fonts()
         painter.setFont(small)
         painter.setPen(QPen(secondary))
         top = f"{index.data(_ROLE_DATE)}  ·  {index.data(_ROLE_META)}"
@@ -108,13 +123,12 @@ class _EntryDelegate(QStyledItemDelegate):
             fm_small.elidedText(top, Qt.TextElideMode.ElideRight, int(text_rect.width())),
         )
 
-        body = QApplication.font()
         painter.setFont(body)
         painter.setPen(QPen(primary))
         fm = QFontMetrics(body)
         snippet = index.data(_ROLE_SNIPPET) or ""
         painter.drawText(
-            QRectF(text_rect.left(), text_rect.bottom() - fm.height(), text_rect.width(), fm.height()),
+            QRectF(text_rect.left(), text_rect.top() + fm_small.height() + self._GAP, text_rect.width(), fm.height()),
             int(align | Qt.AlignmentFlag.AlignVCenter),
             fm.elidedText(snippet, Qt.TextElideMode.ElideRight, int(text_rect.width())),
         )

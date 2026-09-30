@@ -33,7 +33,7 @@ logger = logging.getLogger("saghi.ui.theme")
 
 _FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 _AMIRI_BOOST = 2
-_AMIRI_POINT_SIZE = 15.0
+_AMIRI_PIXEL_SIZE = 15
 _amiri_family: Optional[str] = None
 _system_font: Optional[QFont] = None
 _ui_font = "system"
@@ -61,7 +61,10 @@ def apply_ui_font(app, choice: str) -> str:
     family = load_bundled_fonts() if choice == "amiri" else None
     if family:
         font = QFont(family)
-        font.setPointSizeF(_AMIRI_POINT_SIZE)
+        # Pixel size, not points: macOS maps 1pt to 1 logical px, other
+        # platforms (96 dpi) would make points a third larger than the
+        # stylesheet's px sizes.
+        font.setPixelSize(_AMIRI_PIXEL_SIZE)
         app.setFont(font)
         _ui_font = "amiri"
     else:
