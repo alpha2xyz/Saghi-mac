@@ -52,7 +52,14 @@ Open the **File transcription** page to transcribe audio or video files (WAV, MP
 
 The **History** page keeps what you dictated. You can search it, copy, export an entry as a text file, delete one entry, or clear everything from Settings. Settings can also delete entries older than 7, 30 or 90 days automatically.
 
-Other options in **Settings**: a short sound when recording starts and ends, the recording indicator's style and colour, launch at login, and the translucent macOS sidebar.
+### Status at a glance
+
+- **Floating pill.** A small glass capsule stays on screen and shows what Saghi is doing: ready, listening (with your live waveform and a timer), processing, loading the model, an error, or dictation turned off. Drag it anywhere; it remembers the spot. Click it to open Saghi. Right-click it to move it to the bottom centre or just under the menu bar (notch), or to show it only while dictating. It never takes the focus away from the app you are typing in.
+- **Menu-bar icon.** Saghi's icon in the menu bar changes with the same states (a red microphone while it listens). Its menu shows the current state and your hotkey.
+
+The icons are Apple's own SF Symbols, drawn by macOS, and the interface uses the Amiri typeface (bundled; you can switch back to the system font in Settings).
+
+Other options in **Settings**: a short sound when recording starts and ends, the recording indicator's style and colour, the floating pill (always visible or only while dictating), launch at login, the interface font, and the translucent macOS sidebar.
 
 Your data lives in `~/Library/Application Support/Saghi/`. A local API listens on `127.0.0.1:17865` only, never on the network.
 
@@ -137,7 +144,14 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 صفحة **السجل** تحفظ ما أمليته. يمكنك البحث فيه، ونسخ نص، وتصديره كملف نصي، وحذف نص واحد، أو مسح السجل كله من الإعدادات. ويمكن للإعدادات أيضًا حذف النصوص الأقدم من 7 أو 30 أو 90 يومًا تلقائيًا.
 
-خيارات أخرى في **الإعدادات**: صوت خفيف عند بدء التسجيل وانتهائه، وشكل ولون مؤشر التسجيل، والتشغيل عند الدخول إلى الجهاز، والشريط الجانبي الزجاجي بطابع macOS.
+### الحالة بنظرة
+
+- **التبويب العائم.** كبسولة زجاجية صغيرة تبقى على الشاشة وتبيّن حالة صاغي: جاهز، يستمع (مع موجة صوتك وعدّاد الوقت)، جارٍ المعالجة، جارٍ تحميل النموذج، خطأ، أو الإملاء متوقف. اسحبها لأي مكان وتتذكر مكانها. اضغطها لفتح صاغي. واضغطها بالزر الأيمن لنقلها أسفل الشاشة بالنص أو تحت شريط القوائم (النوتش)، أو لإظهارها أثناء الإملاء فقط. ولا تأخذ التركيز أبدًا من التطبيق الذي تكتب فيه.
+- **أيقونة شريط القوائم.** أيقونة صاغي أعلى الشاشة تتغيّر بنفس الحالات (ميكروفون أحمر وهو يستمع)، وقائمتها تبيّن الحالة والاختصار.
+
+الأيقونات هي أيقونات SF Symbols من أبل يرسمها macOS نفسه، والواجهة بخط Amiri (مضمّن في التطبيق، ويمكنك الرجوع لخط النظام من الإعدادات).
+
+خيارات أخرى في **الإعدادات**: صوت خفيف عند بدء التسجيل وانتهائه، وشكل ولون مؤشر التسجيل، والتبويب العائم (دائمًا ظاهر أو أثناء الإملاء فقط)، والتشغيل عند الدخول إلى الجهاز، وخط الواجهة، والشريط الجانبي الزجاجي بطابع macOS.
 
 بياناتك في `~/Library/Application Support/Saghi/`. واجهة API محلية تعمل على `127.0.0.1:17865` فقط، ولا تستمع لأي اتصال من الشبكة.
 
