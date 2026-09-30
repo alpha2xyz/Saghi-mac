@@ -43,14 +43,36 @@ Look for **Saghi** in each list and switch it on. If you see `python3.12` instea
 ## Usage
 
 1. Click into any text field: browser, Notes, WhatsApp, Word, anything.
-2. Hold the hotkey. The default is **Control + Command** (you can switch to Option + Command in Settings).
+2. Hold the hotkey. The default is **Control + Command**. In Settings you can pick Option + Command, Shift + Command, Control + Option or Control + Shift instead.
 3. Speak.
 4. Release the keys. The text is cleaned (hesitation sounds removed) and pasted. It is also kept on the clipboard.
-5. Press **Esc** before releasing to cancel a recording.
+5. Press **Esc** before releasing to cancel a recording. Pressing any other key while holding the hotkey also cancels it (you were typing a shortcut, not dictating).
 
 Open the **File transcription** page to transcribe audio or video files (WAV, MP3, M4A, AAC, FLAC, OGG, MP4). Long files are processed in safe chunks and progress is saved, so a stopped job resumes where it left off. You can export plain text, SRT or WebVTT.
 
+The **History** page keeps what you dictated. You can search it, copy, export an entry as a text file, delete one entry, or clear everything from Settings. Settings can also delete entries older than 7, 30 or 90 days automatically.
+
+### Status at a glance
+
+- **Floating pill.** A small glass capsule stays on screen and shows what Saghi is doing: ready, listening (with your live waveform and a timer), processing, loading the model, an error, or dictation turned off. Drag it anywhere; it remembers the spot. Click it to open Saghi. Right-click it to move it to the bottom centre or just under the menu bar (notch), or to show it only while dictating. It never takes the focus away from the app you are typing in.
+- **Menu-bar icon.** Saghi's icon in the menu bar changes with the same states (a red microphone while it listens). Its menu shows the current state and your hotkey.
+
+The icons are Apple's own SF Symbols, drawn by macOS, and the interface uses the Amiri typeface (bundled; you can switch back to the system font in Settings).
+
+Other options in **Settings**: a short sound when recording starts and ends, the recording indicator's style and colour, the floating pill (always visible or only while dictating), launch at login, the interface font, and the translucent macOS sidebar.
+
 Your data lives in `~/Library/Application Support/Saghi/`. A local API listens on `127.0.0.1:17865` only, never on the network.
+
+## Updating
+
+From version 0.2.0 on, open **Settings**, then **Check for updates** (also in the menu-bar icon's menu). If a newer release exists, click **Update now**:
+
+- Usually only Saghi's own code changed. The app downloads a small file (a few MB), checks it, installs it, and asks you to restart Saghi.
+- If a release changes the app's libraries, Saghi quits and opens the full installer in Terminal, which updates everything by itself (about 4 GB download).
+
+Every download is checked against the release's SHA256SUMS before it is used. Saghi only contacts GitHub when you click the button, or once a day if you turn on **Check for updates automatically** (off by default). It never installs an update without your click.
+
+Version 0.1.0 has no update button: install 0.2.0 once with the installer, as in [Install](#install).
 
 ## Build from source
 
@@ -113,14 +135,36 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 ## الاستخدام
 
 1. اضغط داخل أي مكان للكتابة: المتصفح أو Notes أو WhatsApp أو Word أو غيرها.
-2. اضغط مطولًا على الاختصار. الافتراضي هو **Control + Command** (يمكنك تغييره إلى Option + Command من الإعدادات).
+2. اضغط مطولًا على الاختصار. الافتراضي هو **Control + Command**، ويمكنك اختيار Option + Command أو Shift + Command أو Control + Option أو Control + Shift من الإعدادات.
 3. تكلّم.
 4. اترك الأزرار. يُنظّف النص (تُحذف أصوات التردد) ثم يُلصق، ويبقى أيضًا في الحافظة.
-5. اضغط **Esc** قبل ترك الأزرار لإلغاء التسجيل.
+5. اضغط **Esc** قبل ترك الأزرار لإلغاء التسجيل. الضغط على أي زر آخر أثناء الاختصار يلغيه أيضًا (لأنك تكتب اختصار لوحة مفاتيح، لا تُملي).
 
 صفحة **تفريغ ملف** تفرّغ ملفات الصوت والفيديو (WAV وMP3 وM4A وAAC وFLAC وOGG وMP4). تُعالج الملفات الطويلة على أجزاء آمنة ويُحفظ التقدم، فإذا توقفت المهمة تكمل من حيث توقفت. يمكنك التصدير كنص عادي أو SRT أو WebVTT.
 
+صفحة **السجل** تحفظ ما أمليته. يمكنك البحث فيه، ونسخ نص، وتصديره كملف نصي، وحذف نص واحد، أو مسح السجل كله من الإعدادات. ويمكن للإعدادات أيضًا حذف النصوص الأقدم من 7 أو 30 أو 90 يومًا تلقائيًا.
+
+### الحالة بنظرة
+
+- **التبويب العائم.** كبسولة زجاجية صغيرة تبقى على الشاشة وتبيّن حالة صاغي: جاهز، يستمع (مع موجة صوتك وعدّاد الوقت)، جارٍ المعالجة، جارٍ تحميل النموذج، خطأ، أو الإملاء متوقف. اسحبها لأي مكان وتتذكر مكانها. اضغطها لفتح صاغي. واضغطها بالزر الأيمن لنقلها أسفل الشاشة بالنص أو تحت شريط القوائم (النوتش)، أو لإظهارها أثناء الإملاء فقط. ولا تأخذ التركيز أبدًا من التطبيق الذي تكتب فيه.
+- **أيقونة شريط القوائم.** أيقونة صاغي أعلى الشاشة تتغيّر بنفس الحالات (ميكروفون أحمر وهو يستمع)، وقائمتها تبيّن الحالة والاختصار.
+
+الأيقونات هي أيقونات SF Symbols من أبل يرسمها macOS نفسه، والواجهة بخط Amiri (مضمّن في التطبيق، ويمكنك الرجوع لخط النظام من الإعدادات).
+
+خيارات أخرى في **الإعدادات**: صوت خفيف عند بدء التسجيل وانتهائه، وشكل ولون مؤشر التسجيل، والتبويب العائم (دائمًا ظاهر أو أثناء الإملاء فقط)، والتشغيل عند الدخول إلى الجهاز، وخط الواجهة، والشريط الجانبي الزجاجي بطابع macOS.
+
 بياناتك في `~/Library/Application Support/Saghi/`. واجهة API محلية تعمل على `127.0.0.1:17865` فقط، ولا تستمع لأي اتصال من الشبكة.
+
+## التحديث
+
+من الإصدار 0.2.0 وما بعده: افتح **الإعدادات** ثم **التحقق من التحديثات** (موجود أيضًا في قائمة أيقونة صاغي أعلى الشاشة). إذا وُجد إصدار أحدث اضغط **تحديث الآن**:
+
+- في الغالب يتغير كود صاغي فقط، فينزّل التطبيق ملفًا صغيرًا (بضعة MB)، ويتحقق منه، ويثبّته، ثم يطلب إعادة تشغيل صاغي.
+- إذا غيّر الإصدار مكتبات التطبيق، يُغلق صاغي ويفتح المثبّت الكامل في Terminal ليحدّث كل شيء تلقائيًا (تنزيل حوالي 4 GB).
+
+كل ملف يُنزَّل يُتحقق منه بملف SHA256SUMS الخاص بالإصدار قبل استخدامه. لا يتصل صاغي بـ GitHub إلا عند ضغط الزر، أو مرة في اليوم إذا فعّلت **التحقق من التحديثات تلقائيًا** (مُطفأ افتراضيًا). ولا يثبّت أي تحديث دون موافقتك.
+
+الإصدار 0.1.0 لا يحتوي زر التحديث: ثبّت الإصدار 0.2.0 مرة واحدة بالمثبّت كما في قسم التثبيت.
 
 ## البناء من المصدر
 

@@ -44,6 +44,17 @@ Guard rails (see class docstring on each for detail):
   - Any transcription failure shows a brief error state in the indicator
     and logs -- this controller never lets an exception escape into Qt's
     event loop and crash the app.
+
+STATUS: the controller is the single source of truth for "what is Saghi
+doing right now", so the floating pill (ui/indicator.py) and the menu-bar
+icon (ui/tray.py) can never disagree. `_recompute_status()` derives one of
+disabled / recording / processing / error / loading / ready from three
+inputs -- the dictation toggle, the pill's own state (`state_changed`) and
+the engine status bridge -- and emits `status_changed(state, message)` only
+when it actually changes. While idle (ready / loading / disabled) it also
+tells the pill which idle face to show. Settings flow both ways: the
+pill mode / position / glass settings are pushed into the pill, and a drag
+or the pill's own "hide when idle" menu item is written back to settings.
 """
 
 from __future__ import annotations
@@ -59,8 +70,8 @@ from PySide6.QtCore import QObject, QThread, Signal
 from .. import history, openrouter, paste, paths
 from ..hotkey import HotkeyListener
 from ..recorder import MicUnavailableError, Recorder, is_silent
-from ..settings import SettingsManager
-from . import strings
+from ..settings import VALID_PILL_MODES, SettingsManager
+from . import sounds, strings
 from .engine_status import EngineStatusBridge
 from .indicator import IndicatorWindow
 
@@ -70,6 +81,13 @@ logger = logging.getLogger("saghi.ui.dictation")
 # hotkey and discarded silently -- no indicator error, no transcription,
 # nothing saved. Per the task spec ("~0.4s").
 MIN_RECORDING_S = 0.4
+
+# Statuses that describe the pill's resting face rather than an active flow.
+_IDLE_STATUSES = ("ready", "loading", "disabled")
+
+# "Nothing applied to the pill yet" -- distinct from a real anchor of None
+# (= default position), so the first settings pass always applies.
+_UNSET = object()
 
 
 class _TranscribeWorker(QThread):
@@ -150,6 +168,12 @@ class DictationController(QObject):
     _hold_ended_raw = Signal()
     _cancelled_raw = Signal()
 
+    # (state, message): state is one of disabled / recording / processing /
+    # error / loading / ready; message is only non-empty for "error".
+    status_changed = Signal(str, str)
+    # The pill was clicked (or its menu's "open" item chosen).
+    open_app_requested = Signal()
+
     def __init__(
         self,
         engine,
@@ -184,23 +208,75 @@ class DictationController(QObject):
         self._recording_active = False
         self._pending_audio: Optional[np.ndarray] = None
         self._worker: Optional[_TranscribeWorker] = None
+        self._stopped = False
+
+        # Single status source (see module docstring, STATUS). "" until the
+        # first _recompute_status() below, so that pass always publishes.
+        self._status = ""
+        self._status_message = ""
+        # Text of the error the pill is currently showing. Remembered here
+        # (every show_error goes through _show_error) instead of read back
+        # from the pill, so it is right the moment state_changed fires.
+        self._error_message = ""
+        # What was last pushed into the pill, so a settings change only
+        # touches what changed (and never fights a drag in progress).
+        self._pill_mode: object = _UNSET
+        self._pill_anchor: object = _UNSET
+        self._pill_glass: object = _UNSET
+
+        self.indicator.state_changed.connect(self._on_indicator_state_changed)
+        self.indicator.anchor_moved.connect(self._on_pill_anchor_moved)
+        self.indicator.mode_change_requested.connect(self._on_pill_mode_requested)
+        self.indicator.open_requested.connect(self._on_pill_open_requested)
+
+        self._apply_pill_settings(settings_manager.current)
+        self._recompute_status()
 
         settings_manager.on_change(self._on_settings_changed)
+
+    def _on_pill_open_requested(self) -> None:
+        # Opening Saghi activates it, so never mid-dictation: the paste must
+        # still land in the app the user is typing in.
+        if self._status in ("ready", "loading", "disabled", "error"):
+            self.open_app_requested.emit()
 
     # ---- lifecycle ----------------------------------------------------------
 
     def start(self) -> None:
-        """Start the global hotkey listener. Call once, at app startup."""
+        """Start the global hotkey listener and show the idle pill. Call once, at app startup."""
         if self._enabled:
             self._hotkey.start()
+        # Configured in __init__; hiding is what puts the pill at rest, which
+        # in "always" mode is the compact resting pill.
+        self.indicator.hide_indicator()
 
     def stop(self) -> None:
         """Stop the hotkey listener and tear down any in-flight recording. Call at app quit."""
+        self._stopped = True
         self._hotkey.stop()
         if self._recording_active:
             self._recording_active = False
             self.recorder.cancel()
+        worker = self._worker
+        if worker is not None:
+            # A transcription still running must not paste, write history or
+            # bring the pill back after the user chose Quit.
+            for signal in (worker.finished_ok, worker.failed):
+                try:
+                    signal.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+            # Its result is discarded anyway: give it a moment, then end it.
+            # Waiting longer would freeze Quit for as long as inference (or a
+            # cold model load) takes, and letting the QThread object die
+            # while it still runs aborts the process at exit.
+            if not worker.wait(300):
+                worker.terminate()
+                worker.wait(2000)
         self.indicator.hide_indicator()
+        # hide_indicator() leaves the resting pill up in "always" mode; on
+        # the way out nothing may stay on screen.
+        self.indicator.hide()
         self._busy = False
 
     def set_enabled(self, enabled: bool) -> None:
@@ -208,23 +284,101 @@ class DictationController(QObject):
         self._enabled = enabled
         if enabled:
             self._hotkey.start()
-            return
-        self._hotkey.stop()
-        if self._recording_active:
-            self._recording_active = False
-            self.recorder.cancel()
-            self.indicator.hide_indicator()
-            self._busy = False
+        else:
+            self._hotkey.stop()
+            if self._recording_active:
+                self._recording_active = False
+                self.recorder.cancel()
+                self.indicator.hide_indicator()
+                self._busy = False
+        self._recompute_status()
 
     @property
     def enabled(self) -> bool:
         return self._enabled
+
+    @property
+    def status(self) -> str:
+        """disabled / recording / processing / error / loading / ready."""
+        return self._status
+
+    @property
+    def status_message(self) -> str:
+        """The error text while status == "error", otherwise ""."""
+        return self._status_message
+
+    # ---- status ---------------------------------------------------------------
+
+    def _compute_status(self) -> tuple[str, str]:
+        # A running flow (pill state) outranks everything; then the toggle;
+        # then the engine. `not engine.is_loaded` keeps the "loading" face
+        # from lingering for up to a poll interval after a dictation has
+        # just loaded the model (the status bridge only polls once a second).
+        pill_state = self.indicator.state
+        if pill_state == "recording":
+            return "recording", ""
+        if pill_state == "processing":
+            return "processing", ""
+        if pill_state == "error":
+            return "error", self._error_message
+        if not self._enabled:
+            return "disabled", ""
+        if self._engine_status.state == "loading" and not self._engine.is_loaded:
+            return "loading", ""
+        return "ready", ""
+
+    def _recompute_status(self) -> None:
+        state, message = self._compute_status()
+        if (state, message) == (self._status, self._status_message):
+            return
+        self._status = state
+        self._status_message = message
+        if state in _IDLE_STATUSES:
+            self.indicator.set_idle_status(state)
+        self.status_changed.emit(state, message)
+
+    def _on_indicator_state_changed(self, _state: str) -> None:
+        self._recompute_status()
+
+    def _show_error(self, message: str) -> None:
+        self._error_message = message
+        self.indicator.show_error(message)
+        # state_changed only fires when the state itself changes; a new
+        # message while the pill is already in "error" still has to show.
+        self._recompute_status()
+
+    # ---- floating pill <-> settings ---------------------------------------------
+
+    def _apply_pill_settings(self, settings) -> None:
+        if settings.floating_pill_mode != self._pill_mode:
+            self._pill_mode = settings.floating_pill_mode
+            self.indicator.set_idle_mode(settings.floating_pill_mode)
+
+        pos = tuple(settings.floating_pill_pos) if settings.floating_pill_pos else None
+        if pos != self._pill_anchor:
+            self._pill_anchor = pos
+            self.indicator.set_anchor(pos)
+
+        if settings.glass_effect != self._pill_glass:
+            self._pill_glass = settings.glass_effect
+            self.indicator.set_glass_enabled(settings.glass_effect)
+
+    def _on_pill_anchor_moved(self, x: int, y: int) -> None:
+        # The pill is already there: record it as applied first so the
+        # settings write below doesn't move it again.
+        self._pill_anchor = (x, y)
+        self._settings_manager.update(floating_pill_pos=[x, y])
+
+    def _on_pill_mode_requested(self, mode: str) -> None:
+        if mode in VALID_PILL_MODES:
+            self._settings_manager.update(floating_pill_mode=mode)
 
     # ---- settings reactivity --------------------------------------------------
 
     def _on_settings_changed(self, settings) -> None:
         if settings.hotkey != self._hotkey.combo:
             self._hotkey.set_combo(settings.hotkey)
+        self._apply_pill_settings(settings)
 
     # ---- engine status reactivity -----------------------------------------
 
@@ -235,6 +389,7 @@ class DictationController(QObject):
         # THIS controller's own flow.
         if state == "ready" and self.indicator.state == "processing":
             self.indicator.show_processing(strings.INDICATOR_PROCESSING)
+        self._recompute_status()
 
     # ---- hotkey-driven flow (main-thread slots, see module docstring) ------
 
@@ -249,12 +404,16 @@ class DictationController(QObject):
             self.recorder.start(device=settings.microphone)
         except MicUnavailableError as exc:
             logger.warning("Could not start recording: %s", exc)
+            if settings.sound_feedback:
+                sounds.play(sounds.ERROR)
             self.indicator.set_color(settings.waveform_color)
-            self.indicator.show_error(strings.INDICATOR_ERROR_MIC)
+            self._show_error(strings.INDICATOR_ERROR_MIC)
             self._busy = False
             return
 
         self._recording_active = True
+        if settings.sound_feedback:
+            sounds.play(sounds.START)
         self.indicator.set_style(settings.waveform_style)
         self.indicator.set_color(settings.waveform_color)
         self.indicator.show_recording(self.recorder.level)
@@ -282,7 +441,7 @@ class DictationController(QObject):
                 "Microphone permission grant, not a real quiet room (see recorder.is_silent())",
                 duration_s,
             )
-            self.indicator.show_error(strings.INDICATOR_ERROR_MIC)
+            self._show_error(strings.INDICATOR_ERROR_MIC)
             self._busy = False
             return
 
@@ -322,6 +481,8 @@ class DictationController(QObject):
     # ---- transcription completion -------------------------------------------
 
     def _on_transcribe_finished(self, result) -> None:
+        if self._stopped:
+            return
         settings = self._settings_manager.current
 
         paste_result = paste.paste_text(result.text, autopaste=settings.autopaste)
@@ -349,20 +510,37 @@ class DictationController(QObject):
         if settings.save_recordings and self._pending_audio is not None and self._pending_audio.size:
             self._save_recording(self._pending_audio)
 
+        if settings.sound_feedback:
+            sounds.play(sounds.DONE)
+
         self._pending_audio = None
         self.indicator.hide_indicator()
         self._busy = False
 
     def _on_transcribe_failed(self, message: str) -> None:
         logger.error("Dictation transcription failed: %s", message)
+        if self._stopped:
+            return
+        if not self._engine.is_loaded:
+            # The model never finished loading (missing/corrupt/out of
+            # memory): drop the "loading" state, or the pill and menu-bar
+            # icon would say "loading" forever.
+            self._engine_status.mark_failed()
+        if self._settings_manager.current.sound_feedback:
+            sounds.play(sounds.ERROR)
         self._pending_audio = None
-        self.indicator.show_error(strings.INDICATOR_ERROR_GENERIC)
+        self._show_error(strings.INDICATOR_ERROR_GENERIC)
         self._busy = False
 
     def _on_worker_thread_finished(self) -> None:
         # QThread housekeeping only -- UI state is already fully handled by
         # _on_transcribe_finished/_on_transcribe_failed, which always fire
-        # before this (same pattern as filejob_page.py).
+        # before this (same pattern as filejob_page.py). The worker is a
+        # child of this controller and holds the whole recording, so it is
+        # deleted here, or every dictation would stay in memory until quit.
+        worker = self.sender() or self._worker
+        if worker is not None:
+            worker.deleteLater()
         self._worker = None
 
     def _save_recording(self, audio: np.ndarray) -> None:

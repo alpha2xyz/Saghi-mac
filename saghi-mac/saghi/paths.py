@@ -14,7 +14,9 @@ creates them.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+from typing import Optional
 
 _ENV_VAR = "SAGHI_DATA_DIR"
 
@@ -48,3 +50,17 @@ def ensure_dirs() -> Path:
     d.mkdir(parents=True, exist_ok=True)
     recordings_dir().mkdir(parents=True, exist_ok=True)
     return d
+
+
+def app_resources_dir(executable: Optional[str] = None) -> Optional[Path]:
+    """
+    `.../Saghi.app/Contents/Resources` when running from the installed app
+    bundle (the interpreter lives at Resources/venv/bin/python3.12), else
+    None -- e.g. when running from a source checkout. Pure path arithmetic,
+    never touches the filesystem.
+    """
+    exe = Path(executable or sys.executable)
+    for parent in exe.parents:
+        if parent.name == "Resources" and parent.parent.name == "Contents" and parent.parent.parent.suffix == ".app":
+            return parent
+    return None

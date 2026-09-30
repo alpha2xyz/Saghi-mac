@@ -77,7 +77,7 @@ jobs:
           test -d "$APP" || { echo "Saghi.app was not created" >&2; exit 1; }
           RES="$APP/Contents/Resources"
           PYTHONPATH="$RES/app" QT_QPA_PLATFORM=offscreen "$RES/venv/bin/python3.12" -c \
-            "import saghi, saghi.api, saghi.engine, PySide6.QtCore; print('import ok:', saghi.__file__)"
+            "import os, saghi, saghi.api, saghi.engine, saghi.updater, PySide6.QtCore; print('import ok:', saghi.__file__, saghi.__version__); assert saghi.__version__ == os.environ['VERSION'], 'version stamp missing'"
           df -h /
 
       - name: Start local API and check health (hard failure)
@@ -114,7 +114,13 @@ jobs:
         run: |
           set -euo pipefail
           ZIP="Saghi-mac-v${VERSION}.zip"
+          APP_ZIP="Saghi-mac-app-v${VERSION}.zip"
           mkdir -p dist
+          # Small code-only archive for the in-app updater (saghi/updater.py):
+          # saghi/ (with its _version.py stamp) + the pinned requirements file.
+          (cd Saghi-Mac-Portable && zip -qr -X "../dist/${APP_ZIP}" saghi requirements-arm64.txt -x '*.DS_Store' '*__pycache__*')
+          unzip -l "dist/${APP_ZIP}" | tail -3
+          unzip -p "dist/${APP_ZIP}" saghi/_version.py
           # Stream the zip straight into split so the whole zip never sits on disk
           # (the runner disk is small).
           ditto -c -k --keepParent Saghi-Mac-Portable - | split -b 1900m - "dist/${ZIP}.part-"
@@ -122,9 +128,10 @@ jobs:
           cd dist
           # the checksum of the whole zip = checksum of the parts joined in order
           ZIP_SHA="$(cat "${ZIP}".part-* | shasum -a 256 | awk '{print $1}')"
-          { shasum -a 256 "${ZIP}".part-*; echo "${ZIP_SHA}  ${ZIP}"; } > SHA256SUMS
           cp ../saghi-mac/packaging/Install-Saghi-mac.command .
           chmod +x Install-Saghi-mac.command
+          # The in-app updater refuses any file without a line here.
+          { shasum -a 256 "${ZIP}".part-*; echo "${ZIP_SHA}  ${ZIP}"; shasum -a 256 "${APP_ZIP}" Install-Saghi-mac.command; } > SHA256SUMS
           # A zip keeps the run permission that browsers strip from a bare .command download.
           ditto -c -k --sequesterRsrc Install-Saghi-mac.command Install-Saghi-mac.zip
           ls -la
@@ -141,9 +148,9 @@ jobs:
             for a in $(gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '^Saghi-mac-.*\.zip\.part-' || true); do
               gh release delete-asset "$TAG" "$a" -y
             done
-            gh release upload "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip --clobber
+            gh release upload "$TAG" Saghi-mac-v*.zip.part-* Saghi-mac-app-v*.zip SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip --clobber
           else
-            gh release create "$TAG" Saghi-mac-v*.zip.part-* SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip \
+            gh release create "$TAG" Saghi-mac-v*.zip.part-* Saghi-mac-app-v*.zip SHA256SUMS Install-Saghi-mac.command Install-Saghi-mac.zip \
               --title "Saghi-mac ${TAG}" --latest \
               --notes "Free Arabic voice typing for Apple-silicon Macs. Download Install-Saghi-mac.zip, unzip it, and double-click Install-Saghi-mac.command. See the README for the first-run steps."
           fi

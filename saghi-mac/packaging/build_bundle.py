@@ -300,6 +300,18 @@ def copy_saghi_source() -> None:
         raise RuntimeError(f"no .py files found after copying saghi/ source to {dest}")
     log(f"  {len(py_files)} .py files copied.")
 
+    # Version stamp read by saghi/__init__.py -- the in-app updater
+    # (saghi/updater.py) compares REQUIREMENTS_SHA256 across releases to
+    # decide whether swapping saghi/ alone is a complete update.
+    req_sha = sha256_of(REQUIREMENTS_ARM64)
+    (dest / "_version.py").write_text(
+        "# Written by packaging/build_bundle.py -- do not edit.\n"
+        f'__version__ = "{VERSION}"\n'
+        f'REQUIREMENTS_SHA256 = "{req_sha}"\n',
+        encoding="utf-8",
+    )
+    log(f"  _version.py written (version {VERSION}, requirements sha256 {req_sha[:12]}...).")
+
 
 # ---------------------------------------------------------------------------
 # stage 4: model checkpoint (read-only source -- copy, never modify)

@@ -58,6 +58,14 @@ class EngineStatusBridge(QObject):
             self._state = STATE_LOADING
             self._emit()
 
+    def mark_failed(self) -> None:
+        """Call when a load that mark_loading() announced failed: back to "cold"."""
+        if self._engine.is_loaded:
+            return
+        if self._state != STATE_COLD:
+            self._state = STATE_COLD
+            self._emit()
+
     def _poll(self) -> None:
         if self._engine.is_loaded and self._state != STATE_READY:
             self._state = STATE_READY

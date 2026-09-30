@@ -19,6 +19,10 @@ Produces (in dev/screenshots/), each verified non-blank before returning:
     page-filejob-idle.png     -- file transcription page, nothing picked yet
     page-filejob-running.png  -- same page, mocked mid-progress values
     page-settings.png         -- settings page
+    ...-dark.png              -- the same pages in dark mode
+
+Controls are drawn by Qt's Fusion style here; the real app on a Mac draws
+buttons and pop-ups natively, and the sidebar glass only exists there.
 
 tray-menu.png is intentionally skipped -- QSystemTrayIcon has no
 renderable widget to grab under an offscreen platform (there's no real
@@ -57,7 +61,7 @@ MIN_PNG_BYTES = 2048  # sanity floor -- a genuinely rendered 1100x720 page is al
 
 _SEED_ENTRIES = [
     dict(
-        source="cli", language="ar", cleanup_level="light", duration_s=12.4, inference_s=3.1,
+        source="dictation", language="ar", cleanup_level="light", duration_s=12.4, inference_s=3.1,
         raw_text="ففي الحالة دي المسألة دي يعني um more safe",
         text="ففي الحالة دي المسألة دي يعني more safe",
         audio_filename="sample1.wav",
@@ -93,6 +97,63 @@ def _grab(widget, path: Path) -> None:
     print(f"wrote {path.name}  ({size:,} bytes)")
 
 
+def _set_scheme(app, dark: bool) -> None:
+    """Approximates macOS light/dark: the offscreen platform has no system dark mode to follow."""
+    from PySide6.QtGui import QColor, QPalette
+
+    if not dark:
+        app.setPalette(app.style().standardPalette())
+    else:
+        pal = QPalette()
+        roles = {
+            QPalette.ColorRole.Window: "#1E1E20",
+            QPalette.ColorRole.WindowText: "#F5F5F7",
+            QPalette.ColorRole.Base: "#2B2B2E",
+            QPalette.ColorRole.AlternateBase: "#323236",
+            QPalette.ColorRole.Text: "#F5F5F7",
+            QPalette.ColorRole.Button: "#3A3A3D",
+            QPalette.ColorRole.ButtonText: "#F5F5F7",
+            QPalette.ColorRole.Highlight: "#0A84FF",
+            QPalette.ColorRole.HighlightedText: "#FFFFFF",
+            QPalette.ColorRole.PlaceholderText: "#8E8E93",
+            QPalette.ColorRole.ToolTipBase: "#2B2B2E",
+            QPalette.ColorRole.ToolTipText: "#F5F5F7",
+        }
+        for role, color in roles.items():
+            pal.setColor(role, QColor(color))
+        for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
+            pal.setColor(QPalette.ColorGroup.Disabled, role, QColor("#6E6E73"))
+        app.setPalette(pal)
+    app.processEvents()
+
+
+def _grab_all(app, window, suffix: str) -> None:
+    # History page
+    window.nav.setCurrentRow(0)
+    app.processEvents()
+    _grab(window, OUT_DIR / f"page-history{suffix}.png")
+
+    # File job page -- idle state
+    fj = window.filejob_page
+    window.nav.setCurrentRow(1)
+    app.processEvents()
+    if not suffix:
+        _grab(window, OUT_DIR / "page-filejob-idle.png")
+
+    # File job page -- mocked mid-progress state (no real worker/inference)
+    fj.preview_picked("quarterly-review-long.wav", 187_400_000)
+    fj.set_running(True)
+    fj.resume_label.setVisible(False)
+    fj.apply_progress(2, 5, 40.0, 96.0, 144.0)
+    app.processEvents()
+    _grab(window, OUT_DIR / f"page-filejob-running{suffix}.png")
+
+    # Settings page
+    window.nav.setCurrentRow(2)
+    app.processEvents()
+    _grab(window, OUT_DIR / f"page-settings{suffix}.png")
+
+
 def main() -> int:
     if SCRATCH_DATA_DIR.exists():
         import shutil
@@ -102,39 +163,28 @@ def main() -> int:
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+    # Fusion draws the same everywhere; on a real Mac the buttons and
+    # pop-ups are drawn natively by macOS instead (see ui/theme.py).
+    app.setStyle("Fusion")
+    _set_scheme(app, dark=False)
+    # Same interface font as the real app (ui/app.py build()).
+    from saghi.ui import theme
+
+    theme.apply_ui_font(app, SettingsManager().current.ui_font)
 
     settings_manager = SettingsManager()
     engine = SaghiEngine(DEFAULT_MODEL_DIR)
     engine_status = EngineStatusBridge(engine)
 
     window = MainWindow(settings_manager, engine, engine_status)
-    window.resize(1100, 720)
+    window.resize(1100, 760)
     window.show()
     app.processEvents()
 
-    # History page
-    window.nav.setCurrentRow(0)
-    app.processEvents()
-    _grab(window, OUT_DIR / "page-history.png")
+    _grab_all(app, window, "")
 
-    # File job page -- idle state
-    window.nav.setCurrentRow(1)
-    app.processEvents()
-    _grab(window, OUT_DIR / "page-filejob-idle.png")
-
-    # File job page -- mocked mid-progress state (no real worker/inference)
-    fj = window.filejob_page
-    fj.preview_picked("quarterly-review-long.wav")
-    fj.set_running(True)
-    fj.resume_label.setVisible(False)
-    fj.apply_progress(2, 5, 40.0, 96.0, 144.0)
-    app.processEvents()
-    _grab(window, OUT_DIR / "page-filejob-running.png")
-
-    # Settings page
-    window.nav.setCurrentRow(2)
-    app.processEvents()
-    _grab(window, OUT_DIR / "page-settings.png")
+    _set_scheme(app, dark=True)
+    _grab_all(app, window, "-dark")
 
     print(f"\nAll screenshots written to {OUT_DIR}")
     return 0

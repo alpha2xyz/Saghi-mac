@@ -48,11 +48,13 @@ Use Python 3.12 (or any Python whose `pip` can reach PyPI).
 `.github/workflows/build-app.yml` is run by hand (Actions tab, "Run workflow", with a `version` input). On a `macos-15` Apple-silicon runner it:
 
 1. Downloads the model from this repo's `model-v1` release (two `.part` files, `model-config.zip`, `SHA256SUMS`), joins and verifies it.
-2. Runs `build_bundle.py`.
-3. Smoke-tests: runs the installer (`SAGHI_NO_LAUNCH=1`, no login item), checks the app and that `saghi` imports, starts the local API headless and checks `/api/health`. The health and install steps must pass.
+2. Runs `build_bundle.py`, which also writes `saghi/_version.py` into the bundle (the version, and the sha256 of `requirements-arm64.txt`).
+3. Smoke-tests: runs the installer (`SAGHI_NO_LAUNCH=1`, no login item), checks the app and that `saghi` imports with the right version, starts the local API headless and checks `/api/health`. The health and install steps must pass.
 4. Tries an Arabic transcription with the macOS `say` voice. This step is allowed to fail (the runner has about 7 GB of RAM), and prints a clear warning if it does.
-5. Zips the bundle, splits it into parts under 2 GB (GitHub's limit per file), and writes `SHA256SUMS`.
-6. Creates or updates the release `v<version>` with the parts, `SHA256SUMS`, `Install-Saghi-mac.command` and `Install-Saghi-mac.zip` (the same installer in a zip, which keeps its run permission).
+5. Zips the bundle, splits it into parts under 2 GB (GitHub's limit per file), makes the small code-only `Saghi-mac-app-v<version>.zip` (`saghi/` + `requirements-arm64.txt`), and writes `SHA256SUMS` (parts, full zip, app zip, installer).
+6. Creates or updates the release `v<version>` with the parts, `Saghi-mac-app-v<version>.zip`, `SHA256SUMS`, `Install-Saghi-mac.command` and `Install-Saghi-mac.zip` (the same installer in a zip, which keeps its run permission).
+
+The in-app updater (`saghi/updater.py`) reads the newest `v<number>` release. If the release's `REQUIREMENTS_SHA256` matches the installed one, it swaps in `saghi/` from the app zip (a light update); otherwise it runs `Install-Saghi-mac.command` (a full update). It refuses any file that has no matching line in `SHA256SUMS`. To ship an update, run the workflow with a higher version number.
 
 The end-user installer `Install-Saghi-mac.command` downloads those parts with `curl` (32 parallel byte-range connections, because GitHub limits the speed of each single connection), verifies them, joins them and runs the bundled `install-saghi.command`.
 
@@ -64,6 +66,7 @@ The tests in `saghi-mac/dev/` are plain scripts (no pytest needed). Run them fro
 cd saghi-mac
 python3 dev/test_cleanup.py
 python3 dev/test_hotkey_logic.py
+QT_QPA_PLATFORM=offscreen PYTHONPATH=. python3 dev/test_new_options.py   # settings, history, login item, updater, GUI
 PYTHONPATH=. python3 dev/test_segmentation.py     # needs numpy
 ```
 

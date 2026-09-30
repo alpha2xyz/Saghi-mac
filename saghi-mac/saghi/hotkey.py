@@ -1,7 +1,8 @@
 """
 Global press-and-HOLD hotkey detection (the Mac
-presets are Ctrl+Cmd / Alt+Cmd, per `settings.py` -- fn is not reliably
-hookable, so only ctrl+cmd and alt+cmd are offered in `settings_page.py`).
+presets are the two-modifier combos in `COMBOS` below -- Ctrl+Cmd, Alt+Cmd,
+Shift+Cmd, Ctrl+Alt, Ctrl+Shift -- per `settings.VALID_HOTKEYS`; fn is not
+reliably hookable, so it is never offered in `settings_page.py`).
 
 Two pieces, deliberately separated:
 
@@ -26,6 +27,9 @@ Semantics (combo = a set of modifier "families", e.g. {"ctrl", "cmd"}):
     release of the modifier keys is swallowed (no `hold_ended` for a
     cancelled hold). A repeated/auto-repeated Esc press during the same
     hold does NOT fire `cancelled` a second time.
+  - Any other (non-modifier) key pressed while holding cancels the same
+    way as Esc: the user is typing a shortcut that shares our modifiers
+    (Ctrl+Cmd+Space, Shift+Cmd+4, ...), not dictating.
   - Debounce: macOS's own key-repeat re-fires `on_press` for a key that's
     already held (both plain keys and, per the task's explicit warning,
     can happen for modifiers too on some setups). Set-membership updates
@@ -66,6 +70,9 @@ logger = logging.getLogger("saghi.hotkey")
 COMBOS: Dict[str, FrozenSet[str]] = {
     "ctrl+cmd": frozenset({"ctrl", "cmd"}),
     "alt+cmd": frozenset({"alt", "cmd"}),
+    "shift+cmd": frozenset({"shift", "cmd"}),
+    "ctrl+alt": frozenset({"ctrl", "alt"}),
+    "ctrl+shift": frozenset({"ctrl", "shift"}),
 }
 
 DEFAULT_COMBO = "ctrl+cmd"
@@ -94,6 +101,9 @@ def _build_normalize_map() -> dict:
         keyboard.Key.alt: "alt",
         keyboard.Key.alt_l: "alt",
         keyboard.Key.alt_r: "alt",
+        keyboard.Key.shift: "shift",
+        keyboard.Key.shift_l: "shift",
+        keyboard.Key.shift_r: "shift",
     }
 
 
@@ -188,6 +198,17 @@ class HotkeyStateMachine:
 
         name = self._normalize.get(key)
         if name is None:
+            # Any other key pressed while the combo is held means the user
+            # is typing a keyboard shortcut that happens to share our
+            # modifiers (Ctrl+Cmd+Space opens the emoji picker, Shift+Cmd+4
+            # takes a screenshot, ...), not dictating -- cancel the hold
+            # exactly like Esc does, so no stray recording gets transcribed.
+            if self._holding and not self._cancelled_this_hold:
+                self._cancelled_this_hold = True
+                self._holding = False
+                logger.debug("Hotkey hold cancelled: another key was pressed")
+                if self.on_cancelled:
+                    self.on_cancelled()
             return
 
         was_all_present = self._required.issubset(self._held)

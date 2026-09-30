@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterator, Optional
 
 from .paths import db_path, ensure_dirs
@@ -145,6 +145,57 @@ def search(limit: int = 20, query: str = "") -> list[dict]:
                 "SELECT * FROM history ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
         return [_row_to_dict(r) for r in rows]
+
+
+def delete_entry(entry_id: int) -> bool:
+    """Delete one history row. Returns whether a row was actually removed."""
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM history WHERE id = ?", (entry_id,))
+        return cur.rowcount > 0
+
+
+def clear_all() -> int:
+    """Delete every history row. Returns how many rows were removed."""
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM history")
+        return cur.rowcount
+
+
+def _cutoff(days: int, now: Optional[datetime]) -> str:
+    now = now or datetime.now(timezone.utc)
+    return (now - timedelta(days=days)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+
+
+def count_older_than(days: int, now: Optional[datetime] = None) -> int:
+    """How many rows prune_older_than(days) would delete (0 for days <= 0)."""
+    if days <= 0:
+        return 0
+    with _connect() as conn:
+        row = conn.execute("SELECT COUNT(*) FROM history WHERE created_at < ?", (_cutoff(days, now),)).fetchone()
+        return int(row[0])
+
+
+def prune_older_than(days: int, now: Optional[datetime] = None) -> int:
+    """
+    Delete rows created more than `days` days ago (settings.py's
+    `history_retention_days`). `days <= 0` means keep forever: nothing is
+    touched. Returns how many rows were removed.
+
+    created_at is always written by add_entry() as a UTC ISO-8601 string
+    with the same fixed format, so a plain string comparison against the
+    cutoff in that same format is a correct chronological comparison.
+    """
+    if days <= 0:
+        return 0
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM history WHERE created_at < ?", (_cutoff(days, now),))
+        return cur.rowcount
+
+
+def count() -> int:
+    """Total number of history rows."""
+    with _connect() as conn:
+        return int(conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
 
 
 def _escape_like(pattern: str) -> str:
