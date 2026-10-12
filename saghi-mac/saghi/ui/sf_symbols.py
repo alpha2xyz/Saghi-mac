@@ -340,6 +340,9 @@ def _cg_image(image):
     argument, which stays in the Python argument list and turns the result into
     an (image, rect) tuple; objc.NULL asks AppKit for its default rect. Older or
     newer bridges may hand back the bare image, so accept both.
+
+    Quartz is imported only so pyobjc knows the CGImageRef type: without it the
+    image comes back as a raw objc.PyObjCPointer (deprecated, warns every call).
     """
     try:
         import objc
@@ -347,6 +350,8 @@ def _cg_image(image):
         null = getattr(objc, "NULL", None)
     except Exception:  # noqa: BLE001
         null = None
+    with contextlib.suppress(Exception):
+        import Quartz  # noqa: F401
     for rect_arg in (null, None):
         try:
             result = image.CGImageForProposedRect_context_hints_(rect_arg, None, None)
