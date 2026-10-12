@@ -130,12 +130,14 @@ for key, value in new_values.items():
 # UI reflects: a fresh SettingsPage built from the reloaded manager shows the saved values
 page = SettingsPage(sm2)
 check(page.hotkey_combo.currentData() == "alt+cmd", "SettingsPage hotkey combo reflects saved value")
-# "Test Microphone" isn't a real enumerated device (sounddevice isn't
-# installed in this dev venv by design -- see settings_page.py's module
-# docstring), so the combo can only offer "الافتراضي"; falling back to it
-# rather than silently disappearing the saved value is the correct
-# behavior being checked here.
-check(page.mic_combo.currentData() is None, "SettingsPage mic combo falls back to default when the saved device isn't in the enumerated list")
+# "Test Microphone" isn't a connected device, so the combo keeps it
+# selected under a "not connected" label instead of pretending the
+# default is chosen (the saved setting still names that mic).
+check(page.mic_combo.currentData() == "Test Microphone", "SettingsPage mic combo keeps a saved mic that isn't connected selected")
+check(
+    page.mic_combo.currentText() == strings.mic_disconnected_label("Test Microphone"),
+    "SettingsPage mic combo marks the saved mic as not connected",
+)
 check(page.cleanup_combo.currentData() == "medium", "SettingsPage cleanup combo reflects saved value")
 check(page.language_combo.currentData() == "en", "SettingsPage language combo reflects saved value")
 check(page.autopaste_check.isChecked() is False, "SettingsPage autopaste checkbox reflects saved value")

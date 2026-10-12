@@ -19,3 +19,9 @@ saghi-mac/packaging/.cache/
 saghi-mac/model/
 dist/
 *.zip.part-*
+
+# Private, never public (checked by new-project's check-repo.sh --public)
+CLAUDE.local.md
+TODO.md
+.env
+.claude/settings.local.json

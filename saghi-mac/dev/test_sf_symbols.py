@@ -108,10 +108,11 @@ REQUIRED = {
 
 print("--- 1. drawn fallbacks ---")
 
-# Sections 1, 2 and 4 check the drawn look-alikes pixel by pixel, so they
-# must take the drawn path even when this test runs on a Mac with pyobjc
-# (section 3 fakes macOS on its own).
-_REAL_PLATFORM = sys.platform
+# The whole test runs as "linux" so nothing reaches the real AppKit, even on a
+# Mac with pyobjc: sections 1, 2 and 4 check the drawn look-alikes pixel by
+# pixel, and section 3 switches to a fake macOS only inside fake_macos(). Its
+# references (the drawn `ref`, 3k's "off macOS") must be computed off macOS too,
+# or on a real Mac they become Apple's own glyph and the comparisons fail.
 sys.platform = "linux"
 sf_symbols._reset_caches()
 check(not sf_symbols.native_available(), "native_available() is False without macOS/pyobjc")
@@ -255,8 +256,6 @@ check(big == (0.0, -5.0, 10.0, 0.0), f"undersized arc radii are scaled to fit, g
 # ---- 3. native path, with a fake AppKit ---------------------------------------------
 
 print("--- 3. native path (fake AppKit) ---")
-
-sys.platform = _REAL_PLATFORM
 
 
 def png_of(img: QImage) -> bytes:
