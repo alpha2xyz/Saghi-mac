@@ -11,7 +11,7 @@ Newest first. Every session adds an entry before it ends.
 
 **Separate small cleanup in `sf_symbols.py`:** `_cg_image` imports Quartz so pyobjc 12 returns a real `CGImageRef` instead of a raw `objc.PyObjCPointer` (deprecated, printed an `ObjCPointerWarning` on every native icon render). Same pixels; warning gone.
 
-**Other tests (installed app's Python):** all `dev/test_*.py` pass, except: `test_e2e_dictation.py` not run (needs speakers + quiet room, see below); `test_dictation_flow.py` and `test_gui_filejob.py` skip without a model path (as before); `test_gui_apiserver.py` fails only its last check ("port 17865 is released after quitting") because the installed Saghi app was running and holds that fixed port. Rerun it with Saghi quit.
+**Other tests (installed app's Python):** all `dev/test_*.py` pass, except: `test_e2e_dictation.py` not run (needs speakers + quiet room, see below); `test_dictation_flow.py` and `test_gui_filejob.py` skip without a model path (as before); `test_gui_apiserver.py` fails its last check ("port 17865 is released after quitting") while the installed Saghi app is running, because the app holds that fixed port. With Saghi quit it passes (6 checks).
 
 **Next:** the open items of the entry below still stand (quiet-room e2e run, release v0.2.1, "opening mic" hint).
 
