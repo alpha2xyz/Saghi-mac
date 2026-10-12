@@ -40,6 +40,8 @@ Newest first. Every session adds an entry before it ends.
 
 **Installed on the owner's Mac (14:23):** the branch code (`283ec02`) was copied into `~/Applications/Saghi.app/Contents/Resources/app/saghi/` (requirements unchanged, same sha256; model and venv untouched) and the old 0.2.0 code removed (recoverable from tag `v0.2.0`). `_version.py` still says 0.2.0 on purpose, so the in-app updater will still offer the real v0.2.1. Installed app started cleanly. The owner will test it over the next two days.
 
+**Merged to main (2026-10-12):** PR #3, merge commit `f7675eb`. Tests re-run on main: mic, smoke and status tests pass; `check-repo.sh --public` OK. No release yet: v0.2.1 still needs the owner's yes.
+
 **Next:**
 - Owner's report from two days of real use.
 - Run `dev/test_e2e_dictation.py` once with the volume at 50%+ in a quiet room.
