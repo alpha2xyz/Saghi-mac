@@ -25,7 +25,10 @@ Newest first. Every session adds an entry before it ends.
 
 **Tests:** new `dev/test_mic_devices.py` (39 checks, fake PortAudio: hot-plug, refresh guard, Settings list, error text, slow mic). New `dev/test_e2e_dictation.py` (real hotkey state machine -> real Recorder on a real mic -> real model -> text, with the Mac voice through the speakers). It ran end to end on the M5 (mic heard the voice, model loaded and returned text, history and clipboard filled) but the transcript was wrong because the speakers were at 6% in a loud room (room rms 0.02-0.05). The test now checks volume >= 50% and room noise first and prints "SKIPPED (ROOM/VOLUME)" (exit 0) when that is the problem, so red always means a Saghi fault. Recorder also counts a stream as open from before the (slow) open, so a Settings refresh can never reset PortAudio mid-open. **Not yet passed in a quiet room** -- owner asked to run it later. All other `dev/test_*.py` pass on the Mac except `test_sf_symbols.py`, which already fails on unchanged code (not related).
 
+**Installed on the owner's Mac (14:23):** the branch code (`283ec02`) was copied into `~/Applications/Saghi.app/Contents/Resources/app/saghi/` (requirements unchanged, same sha256; model and venv untouched) and the old 0.2.0 code removed (recoverable from tag `v0.2.0`). `_version.py` still says 0.2.0 on purpose, so the in-app updater will still offer the real v0.2.1. Installed app started cleanly. The owner will test it over the next two days.
+
 **Next:**
+- Owner's report from two days of real use.
 - Run `dev/test_e2e_dictation.py` once with the volume at 50%+ in a quiet room.
 - Release v0.2.1 (run the build workflow) so the installed app gets the fixes. Until then the installed 0.2.0 still freezes on a slow mic: choose Samsung or the default mic in Settings.
 - Look at the pre-existing `test_sf_symbols.py` failure.
