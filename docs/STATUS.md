@@ -2,6 +2,19 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-10-12 — Mac session (owner's MacBook Air M5, macOS 27.0.1, branch `claude/elegant-germain-dec7cb`, on top of `claude/friendly-planck-ygkqn4`)
+**Solved:** the pre-existing `dev/test_sf_symbols.py` failure ("a symbol AppKit does not know is drawn by the fallback"). The test was wrong, not `saghi/ui/sf_symbols.py`, and not macOS 27.
+
+**Cause:** section 3 set `sys.platform` back to the real `darwin` between its fake-AppKit blocks. On a Mac with pyobjc, the drawn reference `ref` (used by 3f-3j) was therefore rendered by the real AppKit (Apple's filled hourglass), while the value under test was the pure-Python drawing. 3k ("never native off macOS") and the check after it would have failed next for the same reason. It only ever passed on Linux / without pyobjc. Checked: the real native hourglass on macOS 27 renders correctly (29x44 glyph, centred, coloured).
+
+**Fix (test only):** the whole test now runs as `linux`; `fake_macos()` still switches to `darwin` inside each fake block. Result: `ALL PASSED (177 checks)` with the installed app's Python.
+
+**Separate small cleanup in `sf_symbols.py`:** `_cg_image` imports Quartz so pyobjc 12 returns a real `CGImageRef` instead of a raw `objc.PyObjCPointer` (deprecated, printed an `ObjCPointerWarning` on every native icon render). Same pixels; warning gone.
+
+**Other tests (installed app's Python):** all `dev/test_*.py` pass, except: `test_e2e_dictation.py` not run (needs speakers + quiet room, see below); `test_dictation_flow.py` and `test_gui_filejob.py` skip without a model path (as before); `test_gui_apiserver.py` fails only its last check ("port 17865 is released after quitting") because the installed Saghi app was running and holds that fixed port. Rerun it with Saghi quit.
+
+**Next:** the open items of the entry below still stand (quiet-room e2e run, release v0.2.1, "opening mic" hint).
+
 ## 2026-10-12 — Mac session (owner's MacBook Air M5, branch `claude/friendly-planck-ygkqn4`)
 **Solved:** "since v0.2.0 no text, pill stops at 0:03, flat waveform". Not a permission problem and not the model.
 
