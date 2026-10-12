@@ -186,9 +186,15 @@ class Recorder:
 
         # Refresh -> resolve by name -> open: a mic plugged in since the
         # last recording must be found, and indexes may have shifted.
+        global _open_streams
         refresh_devices()
         device_index = _resolve_device(device)
         self.device_name = device if device_index is not None else None
+        # Count the stream as open from here: the open itself can take 1-10 s
+        # (Continuity mic) on the helper thread, and a refresh_devices() from
+        # the Settings page meanwhile would Pa_Terminate it mid-open.
+        with _pa_lock:
+            _open_streams += 1
 
         self._full_chunks = []
         self._total_frames = 0
@@ -234,11 +240,10 @@ class Recorder:
                 stream.start()
                 self._stream_samplerate = native_rate
             except Exception as exc2:
+                with _pa_lock:
+                    _open_streams = max(0, _open_streams - 1)
                 raise MicUnavailableError(f"Could not open microphone: {exc2}") from exc2
 
-        global _open_streams
-        with _pa_lock:
-            _open_streams += 1
         self._stream = stream
         self._recording = True
         logger.info("Recording from %s at %dHz", self.device_name or "the system default microphone", self._stream_samplerate)
@@ -319,6 +324,7 @@ class Recorder:
             self._recent_frames = 0
 
     def _stop_stream(self) -> None:
+        global _open_streams
         self._recording = False
         stream = self._stream
         self._stream = None
@@ -328,7 +334,6 @@ class Recorder:
                 stream.close()
             except Exception:
                 logger.exception("Error stopping/closing input stream")
-            global _open_streams
             with _pa_lock:
                 _open_streams = max(0, _open_streams - 1)
 

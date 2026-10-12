@@ -126,6 +126,52 @@ check(sd.init_calls == init_before, "PortAudio was not re-initialized mid-record
 rec.stop()
 check(recorder.refresh_devices() is True, "refresh_devices() works again once the stream is closed")
 
+print("\n--- 3b. No refresh while a slow mic is still opening on another thread ---")
+import threading  # noqa: E402
+import time  # noqa: E402
+
+opening = threading.Event()
+release = threading.Event()
+_orig_stream = sd.InputStream
+
+
+class _SlowStream(_orig_stream):
+    def __init__(self, *a, **kw):
+        opening.set()
+        release.wait(5)
+        super().__init__(*a, **kw)
+
+
+sd.InputStream = _SlowStream
+slow_rec = recorder.Recorder()
+th = threading.Thread(target=lambda: slow_rec.start(device="Alfa Microphone"))
+th.start()
+check(opening.wait(5), "a start is in the middle of opening the mic")
+init_before = sd.init_calls
+check(recorder.refresh_devices() is False, "refresh_devices() refuses while a mic is mid-open")
+check(sd.init_calls == init_before, "PortAudio was not re-initialized under the opening stream")
+release.set()
+th.join(5)
+sd.InputStream = _orig_stream
+slow_rec.stop()
+check(recorder._open_streams == 0, "count back to 0 after the slow stream closes")
+
+
+class _FailingStream:
+    def __init__(self, *a, **kw):
+        raise RuntimeError("device gone")
+
+
+sd.InputStream = _FailingStream
+try:
+    recorder.Recorder().start(device=None)
+    failed = False
+except recorder.MicUnavailableError:
+    failed = True
+sd.InputStream = _orig_stream
+check(failed, "a mic that can't open raises MicUnavailableError")
+check(recorder._open_streams == 0, "a failed open does not leave the count stuck (refresh still works)")
+
 print("\n--- 4. A saved mic that is gone falls back to the default, and says so ---")
 rec2 = recorder.Recorder()
 rec2.start(device="Unplugged Headset")

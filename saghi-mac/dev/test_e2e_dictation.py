@@ -23,9 +23,9 @@ Claude), SAGHI_MODEL_DIR, and a voice the mic can hear clearly: speakers
 at 50% or more and a quiet room. On a MacBook the speaker-to-mic path is
 weak: at 6% volume with people talking nearby the model hears "music" or
 "noise", which says nothing about Saghi. So the test measures the room
-first and stops with ROOM/VOLUME in the message when that is the problem.
-Skips (exit 0) when macOS, the model or the voice is missing; FAILS when
-the mic sends silence. Autopaste stays off; the clipboard is restored.
+first and SKIPS (exit 0, "SKIPPED (ROOM/VOLUME)") when that is the
+problem, so a red result always means a Saghi fault. Also skips when
+macOS, the model or the voice is missing; FAILS when the mic sends silence. Autopaste stays off; the clipboard is restored.
 
     SAGHI_E2E_MIC   name of the mic to record from (default: system default)
 
@@ -100,13 +100,19 @@ def pump(app: QApplication, seconds: float) -> None:
         time.sleep(0.01)
 
 
+def skip_env(reason: str) -> None:
+    print(f"SKIPPED (ROOM/VOLUME): {reason}")
+    sys.exit(0)
+
+
 def osascript(expr: str) -> str:
     return subprocess.run(["osascript", "-e", expr], capture_output=True, text=True).stdout.strip()
 
 
 check(osascript("output muted of (get volume settings)") != "true", "speakers are not muted (the mic has to hear the voice)")
 volume = int(osascript("output volume of (get volume settings)") or 0)
-check(volume >= MIN_VOLUME, f"VOLUME: speakers at {volume}% -- raise them to {MIN_VOLUME}% or more for this test")
+if volume < MIN_VOLUME:
+    skip_env(f"speakers at {volume}% -- raise them to {MIN_VOLUME}% or more and run again")
 
 work = Path(tempfile.mkdtemp(prefix="saghi-e2e-"))
 speech = work / "speech.aiff"
@@ -140,7 +146,9 @@ time.sleep(1.5)
 room = probe.stop()
 room_rms = float((room.astype("float64") ** 2).mean() ** 0.5) if room.size else 0.0
 check(room.size > 0 and float(abs(room).max()) > 1e-6, "the microphone sends sound (not bit-exact silence)")
-check(room_rms <= MAX_ROOM_RMS, f"ROOM: background sound is rms {room_rms:.4f} (limit {MAX_ROOM_RMS}) -- run it in a quiet room")
+if room_rms > MAX_ROOM_RMS:
+    controller.stop()
+    skip_env(f"background sound is rms {room_rms:.4f} (limit {MAX_ROOM_RMS}) -- run it in a quiet room")
 
 try:
     print(f"--- Hold Ctrl+Cmd, speak through the speakers (mic: {settings_manager.current.microphone or 'system default'}) ---")
