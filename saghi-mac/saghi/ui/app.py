@@ -248,9 +248,24 @@ def _apply_startup_settings(settings_manager: SettingsManager) -> None:
 
 
 def main(argv: Optional[list] = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
+    from PySide6.QtCore import QTimer
+
+    from .. import diagnostics
+
+    diagnostics.setup_logging()
     ctx = build(argv)
-    return ctx.app.exec()
+    # Heartbeat from the UI thread; a stall >5s logs every thread's stack
+    # to saghi.log (see diagnostics.py) -- the evidence a freeze needs.
+    watchdog = diagnostics.FreezeWatchdog()
+    heartbeat = QTimer()
+    heartbeat.setInterval(500)
+    heartbeat.timeout.connect(watchdog.beat)
+    heartbeat.start()
+    watchdog.start()
+    try:
+        return ctx.app.exec()
+    finally:
+        watchdog.stop()
 
 
 if __name__ == "__main__":

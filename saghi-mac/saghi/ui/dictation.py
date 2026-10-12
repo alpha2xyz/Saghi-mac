@@ -137,6 +137,7 @@ class _TranscribeWorker(QThread):
         self._openrouter_instructions = openrouter_instructions
 
     def run(self) -> None:  # noqa: N802 -- QThread override
+        t0 = time.monotonic()
         try:
             result = self._engine.transcribe_array(
                 self._audio, 16000, language=self._language, cleanup_level=self._cleanup_level
@@ -154,6 +155,9 @@ class _TranscribeWorker(QThread):
                         rephrase_result.error,
                     )
 
+            logger.info("Transcription done in %.1fs: %d characters", time.monotonic() - t0, len(result.text or ""))
+            if not (result.text or "").strip():
+                logger.warning("Model returned EMPTY text for %.2fs of audio", len(self._audio) / 16000.0)
             self.finished_ok.emit(result)
         except Exception as exc:  # noqa: BLE001 -- surface to the UI instead of crashing the app
             logger.exception("Dictation transcription failed")
@@ -416,6 +420,7 @@ class DictationController(QObject):
             sounds.play(sounds.START)
         self.indicator.set_style(settings.waveform_style)
         self.indicator.set_color(settings.waveform_color)
+        logger.info("Hold started: recording")
         self.indicator.show_recording(self.recorder.level)
 
     def _on_hold_ended(self) -> None:
@@ -425,6 +430,8 @@ class DictationController(QObject):
 
         audio = self.recorder.stop()
         duration_s = (len(audio) / 16000.0) if audio.size else 0.0
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        logger.info("Hold ended: %.2fs of audio captured, peak level %.5f", duration_s, peak)
 
         if duration_s < MIN_RECORDING_S:
             logger.debug(
@@ -454,6 +461,7 @@ class DictationController(QObject):
         else:
             self.indicator.show_processing(strings.INDICATOR_PROCESSING)
 
+        logger.info("Transcribing %.2fs (engine loaded: %s, language: %s)", duration_s, self._engine.is_loaded, settings.language)
         self._worker = _TranscribeWorker(
             self._engine,
             audio,
