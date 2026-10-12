@@ -212,6 +212,11 @@ SETTINGS_CLEANUP_HINT = "حذف كلمات التردد مثل «اممم» و«
 SETTINGS_AUTOPASTE_HINT = "يُلصق النص مباشرة حيث تكتب، ويبقى أيضًا في الحافظة"
 SETTINGS_SOUND_HINT = "صوت خفيف عند بدء التسجيل وعند انتهاء الكتابة"
 SETTINGS_MIC_HINT = "الجهاز الذي يُسجَّل منه صوتك"
+MIC_DISCONNECTED_TEMPLATE = "{name} (غير متصل)"
+
+
+def mic_disconnected_label(name: str) -> str:
+    return MIC_DISCONNECTED_TEMPLATE.format(name=name)
 SETTINGS_SAVE_RECORDINGS_HINT = "يحفظ ملف الصوت لكل إملاء على جهازك"
 SETTINGS_WAVEFORM_STYLE_HINT = "شكل الموجة في المؤشر الصغير أسفل الشاشة أثناء التسجيل"
 SETTINGS_LAUNCH_AT_LOGIN_HINT = "يعمل صاغي في الخلفية فور تسجيل الدخول إلى الجهاز"
@@ -306,6 +311,13 @@ def openrouter_test_failure(error: str) -> str:
 INDICATOR_PROCESSING = "جارٍ المعالجة…"
 INDICATOR_LOADING_MODEL = "جارٍ تحميل النموذج…"
 INDICATOR_ERROR_MIC = "تعذر الوصول إلى الميكروفون"
+# The mic chosen in Settings delivered pure silence (e.g. an iPhone
+# Continuity mic that isn't streaming): name it, so the fix is obvious.
+INDICATOR_ERROR_MIC_SILENT_TEMPLATE = "«{name}» لا يرسل صوتًا"
+
+
+def mic_silent_text(name: str) -> str:
+    return INDICATOR_ERROR_MIC_SILENT_TEMPLATE.format(name=name)
 INDICATOR_ERROR_GENERIC = "تعذّر الإملاء"
 
 # Tray menu toggle -- "Enable dictation" (checkable, default on per the task spec).

@@ -13,11 +13,13 @@ Notes on two fields:
     (settings.VALID_HOTKEYS), not free key capture; README_AR.md's
     documented default is Ctrl+Cmd, and "fn" is not reliably hookable
     cross-app on macOS, so it is intentionally not offered.
-  * microphone -- real device enumeration needs `sounddevice`, which this
-    phase deliberately does NOT add as a dependency. If `sounddevice`
-    happens to already be importable in the running environment, its
-    input-device list is shown; otherwise a single "الافتراضي" (system
-    default) entry is offered.
+  * microphone -- the input devices macOS has right now, re-read every
+    time the page is shown and every time the list is opened (via
+    recorder.list_input_devices(refresh=True)), so a mic plugged in after
+    launch shows up. A saved mic that is unplugged stays listed, marked as
+    not connected, instead of the list silently showing the default. If
+    `sounddevice` is missing, a single "الافتراضي" (system default) entry
+    is offered.
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, history, login_item, openrouter
+from .. import __version__, history, login_item, openrouter, recorder
 from ..settings import (
     VALID_HOTKEYS,
     VALID_PILL_MODES,
@@ -94,25 +96,36 @@ class _TestConnectionWorker(QThread):
         self.finished_result.emit(result)
 
 
-def _list_microphones() -> List[Tuple[Optional[str], str]]:
-    """[(device_name_or_None, display_label), ...]; first entry is always the system-default placeholder."""
+def _list_microphones(saved: Optional[str] = None) -> List[Tuple[Optional[str], str]]:
+    """
+    [(device_name_or_None, display_label), ...]; first entry is always the
+    system-default placeholder. Re-reads the device list from macOS (see
+    recorder.refresh_devices). `saved`, if given and not connected, is
+    appended with a "not connected" label so the list never pretends the
+    default is selected. list_input_devices() never raises, so a missing
+    audio backend just leaves the default-only list.
+    """
     options: List[Tuple[Optional[str], str]] = [(None, strings.MIC_DEFAULT)]
-    try:
-        import sounddevice as sd
-
-        for dev in sd.query_devices():
-            if dev.get("max_input_channels", 0) > 0:
-                name = dev.get("name")
-                if name:
-                    options.append((name, name))
-    except ImportError:
-        pass
-    except Exception:
-        # Device enumeration can fail for many platform-specific reasons
-        # (no audio backend, permissions) -- never let it crash the
-        # settings page, just fall back to the default-only list.
-        pass
+    seen = set()
+    for name, _idx in recorder.list_input_devices(refresh=True):
+        if name not in seen:
+            seen.add(name)
+            options.append((name, name))
+    if saved is not None and saved not in seen:
+        options.append((saved, strings.mic_disconnected_label(saved)))
     return options
+
+
+class _RefreshingComboBox(QComboBox):
+    """A QComboBox that calls `before_popup` right before its list opens."""
+
+    def __init__(self, before_popup, parent=None):
+        super().__init__(parent)
+        self._before_popup = before_popup
+
+    def showPopup(self) -> None:  # noqa: N802 -- Qt override
+        self._before_popup()
+        super().showPopup()
 
 
 class SettingsPage(QWidget):
@@ -189,14 +202,11 @@ class SettingsPage(QWidget):
 
         # ---- الميكروفون ------------------------------------------------------
         mic = widgets.SettingsCard()
-        self._mic_options = _list_microphones()
-        self.mic_combo = QComboBox()
+        self._mic_options: List[Tuple[Optional[str], str]] = []
+        self.mic_combo = _RefreshingComboBox(self.refresh_microphones)
         self.mic_combo.setMinimumWidth(_FIELD_WIDTH)
         self.mic_combo.setMaximumWidth(_FIELD_WIDTH + 80)
-        for value, label in self._mic_options:
-            self.mic_combo.addItem(label, value)
-        mic_idx = next((i for i, (v, _l) in enumerate(self._mic_options) if v == s.microphone), 0)
-        self.mic_combo.setCurrentIndex(mic_idx)
+        self.refresh_microphones()
         self.mic_combo.currentIndexChanged.connect(self._on_mic_changed)
         mic.add_row(strings.SETTINGS_MIC_LABEL, self.mic_combo, strings.SETTINGS_MIC_HINT)
 
@@ -409,6 +419,26 @@ class SettingsPage(QWidget):
         self._color_value = hex_color
         self._sync_color_dots()
         self._sm.update(waveform_color=hex_color)
+
+    def refresh_microphones(self) -> None:
+        """Re-read the connected mics and keep the saved one selected (no settings write)."""
+        saved = self._sm.current.microphone
+        options = _list_microphones(saved)
+        if options == self._mic_options:
+            return
+        self._mic_options = options
+        self.mic_combo.blockSignals(True)
+        try:
+            self.mic_combo.clear()
+            for value, label in options:
+                self.mic_combo.addItem(label, value)
+            self.mic_combo.setCurrentIndex(next((i for i, (v, _l) in enumerate(options) if v == saved), 0))
+        finally:
+            self.mic_combo.blockSignals(False)
+
+    def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        super().showEvent(event)
+        self.refresh_microphones()
 
     def refresh_history_count(self) -> None:
         try:

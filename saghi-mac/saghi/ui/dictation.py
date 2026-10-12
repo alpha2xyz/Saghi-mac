@@ -443,12 +443,25 @@ class DictationController(QObject):
             return
 
         if is_silent(audio):
-            logger.warning(
-                "Recording captured (%.2fs) but is bit-exact silence -- likely a missing "
-                "Microphone permission grant, not a real quiet room (see recorder.is_silent())",
-                duration_s,
-            )
-            self._show_error(strings.INDICATOR_ERROR_MIC)
+            # Bit-exact silence. From the system default mic it is almost
+            # always a missing Microphone permission; from a mic chosen in
+            # Settings it is usually that device itself (an iPhone
+            # Continuity mic that isn't streaming, a muted headset), and
+            # saying "permission" would send the user the wrong way.
+            device_name = getattr(self.recorder, "device_name", None)
+            if device_name:
+                logger.warning(
+                    "Recording captured (%.2fs) but the chosen microphone %r sent bit-exact silence",
+                    duration_s, device_name,
+                )
+                self._show_error(strings.mic_silent_text(device_name))
+            else:
+                logger.warning(
+                    "Recording captured (%.2fs) but is bit-exact silence -- likely a missing "
+                    "Microphone permission grant, not a real quiet room (see recorder.is_silent())",
+                    duration_s,
+                )
+                self._show_error(strings.INDICATOR_ERROR_MIC)
             self._busy = False
             return
 

@@ -60,6 +60,38 @@ LEVEL_WINDOW_S = 0.5  # how much recent audio level()/waveform reads from
 SILENCE_PEAK_EPS = 1e-6  # see is_silent()
 
 
+# Streams currently open across every Recorder. PortAudio can only be
+# re-initialized (refresh_devices) while this is zero.
+_open_streams = 0
+_pa_lock = threading.Lock()
+
+
+def refresh_devices() -> bool:
+    """
+    Re-read the list of audio devices from macOS.
+
+    PortAudio reads the device list once, at `import sounddevice`, and never
+    again: a microphone plugged in after Saghi started (USB-C earphones, a
+    headset) is invisible -- not listed in Settings, and a saved name for it
+    falls back to the system default. Terminating and re-initializing
+    PortAudio is the documented way to see the current list (~3ms on an M5).
+    Skipped while a stream is open, because Pa_Terminate closes every
+    stream. Returns whether the list was refreshed. Never raises.
+    """
+    with _pa_lock:
+        if _open_streams:
+            return False
+        try:
+            import sounddevice as sd
+
+            sd._terminate()
+            sd._initialize()
+            return True
+        except Exception:
+            logger.exception("Could not refresh the audio device list")
+            return False
+
+
 class RecorderError(Exception):
     """Base class for recorder errors the UI layer can catch and show a message for."""
 
@@ -68,8 +100,14 @@ class MicUnavailableError(RecorderError):
     """The input stream could not be opened at all (bad device / no input devices / PortAudio error)."""
 
 
-def list_input_devices() -> List[Tuple[str, int]]:
-    """[(name, index), ...] for every device with at least one input channel. Never raises."""
+def list_input_devices(refresh: bool = False) -> List[Tuple[str, int]]:
+    """
+    [(name, index), ...] for every device with at least one input channel.
+    `refresh=True` re-reads the list from macOS first (see refresh_devices).
+    Never raises.
+    """
+    if refresh:
+        refresh_devices()
     try:
         import sounddevice as sd
 
@@ -126,6 +164,8 @@ class Recorder:
         self._recent_chunks: deque = deque()
         self._recent_frames = 0
         self._recording = False
+        # Name of the mic the current/last recording used; None = system default.
+        self.device_name: Optional[str] = None
 
     @property
     def is_recording(self) -> bool:
@@ -144,7 +184,11 @@ class Recorder:
 
         import sounddevice as sd
 
+        # Refresh -> resolve by name -> open: a mic plugged in since the
+        # last recording must be found, and indexes may have shifted.
+        refresh_devices()
         device_index = _resolve_device(device)
+        self.device_name = device if device_index is not None else None
 
         self._full_chunks = []
         self._total_frames = 0
@@ -192,8 +236,12 @@ class Recorder:
             except Exception as exc2:
                 raise MicUnavailableError(f"Could not open microphone: {exc2}") from exc2
 
+        global _open_streams
+        with _pa_lock:
+            _open_streams += 1
         self._stream = stream
         self._recording = True
+        logger.info("Recording from %s at %dHz", self.device_name or "the system default microphone", self._stream_samplerate)
 
     def _on_audio(self, mono: np.ndarray) -> None:
         with self._lock:
@@ -280,6 +328,9 @@ class Recorder:
                 stream.close()
             except Exception:
                 logger.exception("Error stopping/closing input stream")
+            global _open_streams
+            with _pa_lock:
+                _open_streams = max(0, _open_streams - 1)
 
     def duration_s(self) -> float:
         """Duration of the buffer that stop() would currently return, in seconds."""
