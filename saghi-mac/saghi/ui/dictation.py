@@ -60,6 +60,7 @@ or the pill's own "hide when idle" menu item is written back to settings.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Optional
 
@@ -69,7 +70,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from .. import history, openrouter, paste, paths
 from ..hotkey import HotkeyListener
-from ..recorder import MicUnavailableError, Recorder, is_silent
+from ..recorder import Recorder, is_silent
 from ..settings import VALID_PILL_MODES, SettingsManager
 from . import sounds, strings
 from .engine_status import EngineStatusBridge
@@ -81,6 +82,14 @@ logger = logging.getLogger("saghi.ui.dictation")
 # hotkey and discarded silently -- no indicator error, no transcription,
 # nothing saved. Per the task spec ("~0.4s").
 MIN_RECORDING_S = 0.4
+
+# Opening a mic normally takes ~0.1s, but an iPhone Continuity mic can take
+# 1-10s and then send silence (measured on a real M5: "Audio Hardware Not
+# Running"). Done on the UI thread, that froze the whole app -- the pill
+# stuck mid-count with a flat wave. The open runs on a helper thread; the UI
+# waits at most this long, then shows the recording pill and finishes the
+# start when the mic answers (see _on_hold_started / _on_mic_opened).
+MIC_OPEN_WAIT_S = 0.25
 
 # Statuses that describe the pill's resting face rather than an active flow.
 _IDLE_STATUSES = ("ready", "loading", "disabled")
@@ -171,6 +180,8 @@ class DictationController(QObject):
     _hold_started_raw = Signal()
     _hold_ended_raw = Signal()
     _cancelled_raw = Signal()
+    # (token, error or None) from the mic-open helper thread, see MIC_OPEN_WAIT_S.
+    _mic_open_done = Signal(object, object)
 
     # (state, message): state is one of disabled / recording / processing /
     # error / loading / ready; message is only non-empty for "error".
@@ -201,6 +212,7 @@ class DictationController(QObject):
         self._hold_started_raw.connect(self._on_hold_started)
         self._hold_ended_raw.connect(self._on_hold_ended)
         self._cancelled_raw.connect(self._on_cancelled)
+        self._mic_open_done.connect(self._on_mic_opened)
         engine_status.status_changed.connect(self._on_engine_status_changed)
 
         self._enabled = True
@@ -213,6 +225,11 @@ class DictationController(QObject):
         self._pending_audio: Optional[np.ndarray] = None
         self._worker: Optional[_TranscribeWorker] = None
         self._stopped = False
+        # Slow mic open in progress (see MIC_OPEN_WAIT_S): the token of the
+        # open we are waiting for, and what the user did meanwhile.
+        self._open_token: Optional[object] = None
+        self._end_requested = False
+        self._cancel_requested = False
 
         # Single status source (see module docstring, STATUS). "" until the
         # first _recompute_status() below, so that pass always publishes.
@@ -258,6 +275,7 @@ class DictationController(QObject):
         """Stop the hotkey listener and tear down any in-flight recording. Call at app quit."""
         self._stopped = True
         self._hotkey.stop()
+        self._cancel_requested = True  # a slow mic open still pending closes itself
         if self._recording_active:
             self._recording_active = False
             self.recorder.cancel()
@@ -290,6 +308,9 @@ class DictationController(QObject):
             self._hotkey.start()
         else:
             self._hotkey.stop()
+            if self._open_token is not None:
+                self._cancel_requested = True
+                self.indicator.hide_indicator()
             if self._recording_active:
                 self._recording_active = False
                 self.recorder.cancel()
@@ -404,10 +425,67 @@ class DictationController(QObject):
         self._busy = True
 
         settings = self._settings_manager.current
-        try:
-            self.recorder.start(device=settings.microphone)
-        except MicUnavailableError as exc:
-            logger.warning("Could not start recording: %s", exc)
+        token = object()
+        done = threading.Event()
+        outcome: dict = {}
+        recorder = self.recorder
+
+        def _open() -> None:
+            t0 = time.monotonic()
+            try:
+                recorder.start(device=settings.microphone)
+            except Exception as exc:  # noqa: BLE001 -- reported to the UI thread
+                outcome["error"] = exc
+            outcome["seconds"] = time.monotonic() - t0
+            done.set()
+            # Only read when the UI stopped waiting (the token check drops it otherwise).
+            self._mic_open_done.emit(token, outcome.get("error"))
+
+        self._open_token = token
+        self._end_requested = False
+        self._cancel_requested = False
+        threading.Thread(target=_open, name="saghi-mic-open", daemon=True).start()
+
+        if done.wait(MIC_OPEN_WAIT_S):
+            self._open_token = None  # handled here; ignore the queued signal
+            self._finish_start(outcome.get("error"))
+            return
+
+        # Slow mic: keep the UI alive. The pill counts from the press with a
+        # flat wave (nothing captured yet) until the mic answers.
+        logger.info("Microphone %r is slow to open -- waiting for it off the UI thread", settings.microphone or "default")
+        self.indicator.set_style(settings.waveform_style)
+        self.indicator.set_color(settings.waveform_color)
+        self.indicator.show_recording(self.recorder.level)
+
+    def _on_mic_opened(self, token, error) -> None:
+        if token is not self._open_token:
+            return
+        self._open_token = None
+        if self._cancel_requested or self._stopped:
+            if error is None:
+                self.recorder.cancel()
+            logger.info("Microphone opened after the hold was cancelled -- discarded")
+            if not self._stopped:
+                self.indicator.hide_indicator()
+            self._busy = False
+            return
+        if self._end_requested:
+            # Released before the mic answered: whatever it captured is not
+            # the user's speech. Say which mic, instead of a silent nothing.
+            if error is None:
+                self.recorder.cancel()
+            name = getattr(self.recorder, "device_name", None) or self._settings_manager.current.microphone
+            logger.warning("Hotkey released before microphone %r finished opening", name or "default")
+            self._show_error(strings.mic_silent_text(name) if name else strings.INDICATOR_ERROR_MIC)
+            self._busy = False
+            return
+        self._finish_start(error)
+
+    def _finish_start(self, error) -> None:
+        settings = self._settings_manager.current
+        if error is not None:
+            logger.warning("Could not start recording: %s", error)
             if settings.sound_feedback:
                 sounds.play(sounds.ERROR)
             self.indicator.set_color(settings.waveform_color)
@@ -418,12 +496,16 @@ class DictationController(QObject):
         self._recording_active = True
         if settings.sound_feedback:
             sounds.play(sounds.START)
-        self.indicator.set_style(settings.waveform_style)
-        self.indicator.set_color(settings.waveform_color)
         logger.info("Hold started: recording")
-        self.indicator.show_recording(self.recorder.level)
+        if self.indicator.state != "recording":  # a slow open already shows it, counting from the press
+            self.indicator.set_style(settings.waveform_style)
+            self.indicator.set_color(settings.waveform_color)
+            self.indicator.show_recording(self.recorder.level)
 
     def _on_hold_ended(self) -> None:
+        if self._open_token is not None:
+            self._end_requested = True
+            return
         if not self._recording_active:
             return
         self._recording_active = False
@@ -491,6 +573,10 @@ class DictationController(QObject):
         self._worker.start()
 
     def _on_cancelled(self) -> None:
+        if self._open_token is not None:
+            self._cancel_requested = True
+            self.indicator.hide_indicator()
+            return
         if not self._recording_active:
             return
         self._recording_active = False

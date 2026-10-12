@@ -215,6 +215,84 @@ controller._on_hold_started()
 controller._on_hold_ended()
 check(controller.status_message == strings.INDICATOR_ERROR_MIC, "silent system-default mic -> the permission message")
 controller.indicator.hide_indicator()
+
+# ============================================================================
+print("\n--- 7. A slow mic (Continuity iPhone mic: 1-10 s to open) never freezes the UI ---")
+
+import time  # noqa: E402
+
+from saghi.ui import dictation as dictation_mod  # noqa: E402
+
+
+class _SlowRecorder:
+    """Opens like the real «Alfa Microphone» on the owner's M5: slow, then silence."""
+
+    def __init__(self, open_s, device_name="Alfa Microphone"):
+        self.open_s = open_s
+        self.device_name = device_name
+        self.started = False
+        self.cancelled = False
+
+    def start(self, device=None):
+        time.sleep(self.open_s)
+        self.started = True
+
+    def stop(self):
+        return np.zeros(16000 * 2, dtype=np.float32)
+
+    def cancel(self):
+        self.cancelled = True
+
+    def level(self):
+        return np.zeros(0, dtype=np.float32), 0.0
+
+
+def pump_until(cond, timeout=5.0):
+    end = time.monotonic() + timeout
+    while not cond() and time.monotonic() < end:
+        app.processEvents()
+        time.sleep(0.01)
+    return cond()
+
+
+# 7a: released while the mic is still opening
+controller.recorder = _SlowRecorder(1.0)
+t0 = time.monotonic()
+controller._on_hold_started()
+blocked = time.monotonic() - t0
+check(blocked < dictation_mod.MIC_OPEN_WAIT_S + 0.2, f"the UI thread came back after {blocked:.2f}s, not after the mic's 1s")
+check(controller.status == "recording", "the pill shows recording (counting) while the mic opens")
+controller._on_hold_ended()
+check(controller._busy, "still busy: the mic has not answered yet")
+check(pump_until(lambda: not controller._busy), "the flow settles once the mic answers")
+check(controller.recorder.cancelled, "the late stream is closed, not left recording")
+check(controller.status_message == strings.mic_silent_text("Alfa Microphone"), "the error names the slow mic")
+controller.indicator.hide_indicator()
+
+# 7b: Esc while the mic is still opening
+controller.recorder = _SlowRecorder(0.6)
+controller._on_hold_started()
+controller._on_cancelled()
+check(controller.indicator.state == "hidden", "Esc hides the pill at once, even mid-open")
+check(pump_until(lambda: not controller._busy), "the flow settles once the mic answers")
+check(controller.recorder.cancelled, "the late stream is closed after Esc")
+check(controller.status == "ready", "back to ready, no error after Esc")
+
+# 7c: slow mic that does answer while still held -> a normal recording
+controller.recorder = _SlowRecorder(0.6, device_name="Samsung USB C Earphones")
+controller._on_hold_started()
+check(pump_until(lambda: controller._recording_active), "the recording becomes active when the mic answers")
+check(controller.status == "recording", "still recording while held")
+controller._on_cancelled()
+check(controller._busy is False and controller.status == "ready", "a normal Esc after that still works")
+
+# 7d: a fast mic keeps the old, synchronous path
+fast = _SlowRecorder(0.0)
+controller.recorder = fast
+controller._on_hold_started()
+check(controller._recording_active and fast.started, "a fast mic is recording the moment the press is handled")
+controller._on_cancelled()
+
 controller.stop()
 
 print(f"\nALL PASSED ({_checks} checks)")
