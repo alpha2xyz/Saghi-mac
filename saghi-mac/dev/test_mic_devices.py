@@ -9,7 +9,7 @@ down to two things, both checked here with a fake `sounddevice` module:
      after Saghi started (USB-C earphones) was invisible: not in Settings,
      and recording silently used another device. recorder.refresh_devices()
      re-reads the list; Recorder.start() and the Settings page call it.
-  2. The mic chosen in Settings ("Alfa Microphone", an iPhone Continuity
+  2. The mic chosen in Settings ("iPhone Microphone", an iPhone Continuity
      mic) delivered bit-exact silence, and the pill blamed a missing
      permission. A silent *chosen* mic is now named in the error.
 
@@ -56,7 +56,7 @@ def _dev(name: str, ins: int, outs: int = 0) -> dict:
 class FakeSD(types.ModuleType):
     def __init__(self) -> None:
         super().__init__("sounddevice")
-        self.hardware = [_dev("Alfa Microphone", 1), _dev("MacBook Air Microphone", 1), _dev("MacBook Air Speakers", 0, 2)]
+        self.hardware = [_dev("iPhone Microphone", 1), _dev("MacBook Air Microphone", 1), _dev("MacBook Air Speakers", 0, 2)]
         self._snapshot = list(self.hardware)
         self.init_calls = 0
         self.terminate_calls = 0
@@ -110,7 +110,7 @@ check("Samsung USB C Earphones" in names_fresh, "list_input_devices(refresh=True
 # ============================================================================
 print("\n--- 2. Recorder.start() refreshes, then resolves the saved name to the current index ---")
 
-sd._snapshot = [_dev("Alfa Microphone", 1), _dev("MacBook Air Microphone", 1)]  # stale list again
+sd._snapshot = [_dev("iPhone Microphone", 1), _dev("MacBook Air Microphone", 1)]  # stale list again
 init_before = sd.init_calls
 rec = recorder.Recorder()
 rec.start(device="Samsung USB C Earphones")
@@ -144,7 +144,7 @@ class _SlowStream(_orig_stream):
 
 sd.InputStream = _SlowStream
 slow_rec = recorder.Recorder()
-th = threading.Thread(target=lambda: slow_rec.start(device="Alfa Microphone"))
+th = threading.Thread(target=lambda: slow_rec.start(device="iPhone Microphone"))
 th.start()
 check(opening.wait(5), "a start is in the middle of opening the mic")
 init_before = sd.init_calls
@@ -191,20 +191,20 @@ from saghi.ui.settings_page import SettingsPage  # noqa: E402
 
 app = QApplication.instance() or QApplication(sys.argv)
 sm = SettingsManager()
-sm.update(microphone="Alfa Microphone")
-sd.hardware = [_dev("Alfa Microphone", 1), _dev("MacBook Air Microphone", 1)]
+sm.update(microphone="iPhone Microphone")
+sd.hardware = [_dev("iPhone Microphone", 1), _dev("MacBook Air Microphone", 1)]
 sd._initialize()
 page = SettingsPage(sm)
 items = [page.mic_combo.itemText(i) for i in range(page.mic_combo.count())]
 check("Samsung USB C Earphones" not in items, "page built before the earphones were plugged in")
-check(page.mic_combo.currentData() == "Alfa Microphone", "saved mic selected")
+check(page.mic_combo.currentData() == "iPhone Microphone", "saved mic selected")
 
 sd.hardware.append(_dev("Samsung USB C Earphones", 2))  # plug in while the app runs
 page.refresh_microphones()  # what showEvent / opening the list do
 items = [page.mic_combo.itemText(i) for i in range(page.mic_combo.count())]
 check("Samsung USB C Earphones" in items, "after a refresh the earphones are in the list")
-check(page.mic_combo.currentData() == "Alfa Microphone", "refresh keeps the saved selection")
-check(sm.current.microphone == "Alfa Microphone", "refresh never writes the setting")
+check(page.mic_combo.currentData() == "iPhone Microphone", "refresh keeps the saved selection")
+check(sm.current.microphone == "iPhone Microphone", "refresh never writes the setting")
 
 idx = page.mic_combo.findData("Samsung USB C Earphones")
 page.mic_combo.setCurrentIndex(idx)
@@ -248,11 +248,11 @@ engine = SaghiEngine(Path(os.environ.get("SAGHI_DATA_DIR")) / "no-model")  # nev
 sm.update(sound_feedback=False, autopaste=False)
 controller = DictationController(engine, EngineStatusBridge(engine), sm)
 
-controller.recorder = _SilentRecorder("Alfa Microphone")
+controller.recorder = _SilentRecorder("iPhone Microphone")
 controller._on_hold_started()
 controller._on_hold_ended()
 check(controller.status == "error", "silent chosen mic -> error state")
-check(controller.status_message == strings.mic_silent_text("Alfa Microphone"), "the error names «Alfa Microphone»")
+check(controller.status_message == strings.mic_silent_text("iPhone Microphone"), "the error names «iPhone Microphone»")
 check(controller._worker is None, "no transcription was started for silence")
 controller.indicator.hide_indicator()
 
@@ -271,9 +271,9 @@ from saghi.ui import dictation as dictation_mod  # noqa: E402
 
 
 class _SlowRecorder:
-    """Opens like the real «Alfa Microphone» on the owner's M5: slow, then silence."""
+    """Opens like the real «iPhone Microphone» on the owner's Mac: slow, then silence."""
 
-    def __init__(self, open_s, device_name="Alfa Microphone"):
+    def __init__(self, open_s, device_name="iPhone Microphone"):
         self.open_s = open_s
         self.device_name = device_name
         self.started = False
@@ -312,7 +312,7 @@ controller._on_hold_ended()
 check(controller._busy, "still busy: the mic has not answered yet")
 check(pump_until(lambda: not controller._busy), "the flow settles once the mic answers")
 check(controller.recorder.cancelled, "the late stream is closed, not left recording")
-check(controller.status_message == strings.mic_silent_text("Alfa Microphone"), "the error names the slow mic")
+check(controller.status_message == strings.mic_silent_text("iPhone Microphone"), "the error names the slow mic")
 controller.indicator.hide_indicator()
 
 # 7b: Esc while the mic is still opening
