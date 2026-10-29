@@ -7,8 +7,9 @@ Microphone capture for live dictation (README_AR.md: "تسجيل لحظي من �
 
   - `start(device=None)` -- begin capture. `device` is a device *name* (as
     stored in `settings.Settings.microphone`), resolved to a PortAudio
-    index; `None` (or a name that no longer matches any connected device)
-    uses the system default input device.
+    index; `None`, a name that no longer matches any connected device, or an
+    iPhone (Continuity) mic uses the Mac's built-in mic (system default if
+    there is none).
   - `stop() -> np.ndarray` -- stop capture, return the whole recording as a
     16kHz mono float32 array.
   - `cancel()` -- stop capture and discard the buffer (Esc-cancel path).
@@ -123,15 +124,34 @@ def list_input_devices(refresh: bool = False) -> List[Tuple[str, int]]:
         return []
 
 
-def _resolve_device(name: Optional[str]) -> Optional[int]:
-    """Device index for `name`, or None (system default) if name is None or no longer matches any device."""
-    if name is None:
-        return None
-    for dev_name, idx in list_input_devices():
-        if dev_name == name:
-            return idx
-    logger.warning("Configured microphone %r not found among current input devices -- using system default", name)
-    return None
+def is_continuity_name(name: Optional[str]) -> bool:
+    """An iPhone/iPad used as a Continuity mic: slow to open, often silent, never chosen automatically."""
+    low = (name or "").lower()
+    return "iphone" in low or "ipad" in low
+
+
+def is_builtin_name(name: Optional[str]) -> bool:
+    """The Mac's own microphone ("MacBook Air Microphone", "Built-in Microphone", ...)."""
+    low = (name or "").lower()
+    return "macbook" in low or "built-in" in low or "builtin" in low
+
+
+def _resolve_device(name: Optional[str]) -> Tuple[Optional[str], Optional[int]]:
+    """
+    (device name, PortAudio index) to record from. The saved `name` is used
+    if it is connected and is not a Continuity (iPhone) mic; otherwise the
+    Mac's built-in mic; if there is none, (None, None) = system default.
+    """
+    devices = list_input_devices()
+    if name is not None and not is_continuity_name(name):
+        for dev_name, idx in devices:
+            if dev_name == name:
+                return dev_name, idx
+        logger.warning("Configured microphone %r not found among current input devices -- using the built-in mic", name)
+    for dev_name, idx in devices:
+        if is_builtin_name(dev_name):
+            return dev_name, idx
+    return None, None
 
 
 def is_silent(audio: np.ndarray, eps: float = SILENCE_PEAK_EPS) -> bool:
@@ -188,8 +208,7 @@ class Recorder:
         # last recording must be found, and indexes may have shifted.
         global _open_streams
         refresh_devices()
-        device_index = _resolve_device(device)
-        self.device_name = device if device_index is not None else None
+        self.device_name, device_index = _resolve_device(device)
         # Count the stream as open from here: the open itself can take 1-10 s
         # (Continuity mic) on the helper thread, and a refresh_devices() from
         # the Settings page meanwhile would Pa_Terminate it mid-open.

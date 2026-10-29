@@ -252,7 +252,7 @@ def history_count_text(count: int) -> str:
     return f"عدد النصوص المحفوظة: {isolate_ltr(str(count))}"
 
 
-MIC_DEFAULT = "الافتراضي"
+MIC_DEFAULT = "ميكروفون الجهاز (الموصى به)"
 
 WAVEFORM_STYLE_LABELS = {
     "bars": "أعمدة",
@@ -311,6 +311,9 @@ def openrouter_test_failure(error: str) -> str:
 INDICATOR_PROCESSING = "جارٍ المعالجة…"
 INDICATOR_LOADING_MODEL = "جارٍ تحميل النموذج…"
 INDICATOR_ERROR_MIC = "تعذر الوصول إلى الميكروفون"
+# The Mac's own mic delivered pure silence: macOS is withholding the
+# Microphone permission from Saghi.
+INDICATOR_ERROR_MIC_PERMISSION = "إذن الميكروفون ناقص: فعّل صاغي من إعدادات النظام > الخصوصية والأمان > الميكروفون"
 # The mic chosen in Settings delivered pure silence (e.g. an iPhone
 # Continuity mic that isn't streaming): name it, so the fix is obvious.
 INDICATOR_ERROR_MIC_SILENT_TEMPLATE = "«{name}» لا يرسل صوتًا"

@@ -70,7 +70,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from .. import history, openrouter, paste, paths
 from ..hotkey import HotkeyListener
-from ..recorder import Recorder, is_silent
+from ..recorder import Recorder, is_builtin_name, is_silent
 from ..settings import VALID_PILL_MODES, SettingsManager
 from . import sounds, strings
 from .engine_status import EngineStatusBridge
@@ -365,9 +365,9 @@ class DictationController(QObject):
     def _on_indicator_state_changed(self, _state: str) -> None:
         self._recompute_status()
 
-    def _show_error(self, message: str) -> None:
+    def _show_error(self, message: str, hide_ms: int = 2500) -> None:
         self._error_message = message
-        self.indicator.show_error(message)
+        self.indicator.show_error(message, auto_hide_ms=hide_ms)
         # state_changed only fires when the state itself changes; a new
         # message while the pill is already in "error" still has to show.
         self._recompute_status()
@@ -477,7 +477,7 @@ class DictationController(QObject):
                 self.recorder.cancel()
             name = getattr(self.recorder, "device_name", None) or self._settings_manager.current.microphone
             logger.warning("Hotkey released before microphone %r finished opening", name or "default")
-            self._show_error(strings.mic_silent_text(name) if name else strings.INDICATOR_ERROR_MIC)
+            self._show_error(strings.mic_silent_text(name) if name and not is_builtin_name(name) else strings.INDICATOR_ERROR_MIC)
             self._busy = False
             return
         self._finish_start(error)
@@ -525,25 +525,25 @@ class DictationController(QObject):
             return
 
         if is_silent(audio):
-            # Bit-exact silence. From the system default mic it is almost
-            # always a missing Microphone permission; from a mic chosen in
-            # Settings it is usually that device itself (an iPhone
-            # Continuity mic that isn't streaming, a muted headset), and
-            # saying "permission" would send the user the wrong way.
+            # Bit-exact silence. From the Mac's own mic it is a missing
+            # Microphone permission. From another mic chosen in Settings it
+            # is that device (a muted headset): name it and go back to the
+            # built-in mic so the next try works.
             device_name = getattr(self.recorder, "device_name", None)
-            if device_name:
+            if device_name and not is_builtin_name(device_name):
                 logger.warning(
-                    "Recording captured (%.2fs) but the chosen microphone %r sent bit-exact silence",
+                    "Recording captured (%.2fs) but the chosen microphone %r sent bit-exact silence -- back to the built-in mic",
                     duration_s, device_name,
                 )
+                self._settings_manager.update(microphone=None)
                 self._show_error(strings.mic_silent_text(device_name))
             else:
                 logger.warning(
-                    "Recording captured (%.2fs) but is bit-exact silence -- likely a missing "
-                    "Microphone permission grant, not a real quiet room (see recorder.is_silent())",
+                    "Recording captured (%.2fs) but is bit-exact silence on the built-in mic -- "
+                    "the Microphone permission is missing for Saghi (see recorder.is_silent())",
                     duration_s,
                 )
-                self._show_error(strings.INDICATOR_ERROR_MIC)
+                self._show_error(strings.INDICATOR_ERROR_MIC_PERMISSION, hide_ms=8000)
             self._busy = False
             return
 
