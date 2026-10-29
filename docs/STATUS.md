@@ -2,6 +2,17 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-10-29 — Mac session (owner's MacBook Air, branch `claude/mac-mic-only`)
+**Solved:** "Saghi never works". Since the 2026-10-12 14:23 code copy into the unsigned `Saghi.app`, every mic (built-in included) gave bit-exact silence inside the app while the same mic gave real audio to a terminal Python: the macOS Microphone grant was stale. Plus the saved mic was the owner's iPhone (Continuity), slow and silent.
+
+**Fix:** commit `0856b68`: the built-in mic is the default; iPhone/iPad mics are hidden and never auto-chosen; a silent non-built-in mic clears the setting so the next try uses the built-in mic; silence on the built-in mic shows a clear permission message. Installed into `Saghi.app`, bundle ad-hoc signed (`codesign --force --deep -s -`), then the owner ran `tccutil reset Microphone io.github.alpha2xyz.saghi-mac` and allowed the prompt. **Verified live:** peak 0.18, text out in 0.5 s.
+
+**Lesson:** after copying code into the bundle, re-sign it ad-hoc and reset the Microphone grant, or audio is silent.
+
+**Tests:** test_mic_devices (54), test_status_ui (161) and the other GUI tests pass. Not run: test_e2e_dictation (quiet room).
+
+**Next:** merge to main (owner's yes); Continuity mics with a custom name (no "iPhone" in it) are not hidden by name yet; make the release build sign ad-hoc so this does not repeat.
+
 ## 2026-10-12 — Mac session (owner's MacBook Air, macOS 27.0.1, branch `claude/elegant-germain-dec7cb`, on top of `claude/friendly-planck-ygkqn4`)
 **Solved:** the pre-existing `dev/test_sf_symbols.py` failure ("a symbol AppKit does not know is drawn by the fallback"). The test was wrong, not `saghi/ui/sf_symbols.py`, and not macOS 27.
 
