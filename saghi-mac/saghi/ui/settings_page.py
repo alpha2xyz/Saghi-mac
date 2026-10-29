@@ -99,7 +99,7 @@ class _TestConnectionWorker(QThread):
 def _list_microphones(saved: Optional[str] = None) -> List[Tuple[Optional[str], str]]:
     """
     [(device_name_or_None, display_label), ...]; first entry is always the
-    system-default placeholder. Re-reads the device list from macOS (see
+    built-in-mic placeholder (iPhone/Continuity mics are never listed). Re-reads the device list from macOS (see
     recorder.refresh_devices). `saved`, if given and not connected, is
     appended with a "not connected" label so the list never pretends the
     default is selected. list_input_devices() never raises, so a missing
@@ -108,10 +108,10 @@ def _list_microphones(saved: Optional[str] = None) -> List[Tuple[Optional[str], 
     options: List[Tuple[Optional[str], str]] = [(None, strings.MIC_DEFAULT)]
     seen = set()
     for name, _idx in recorder.list_input_devices(refresh=True):
-        if name not in seen:
+        if name not in seen and not recorder.is_continuity_name(name):
             seen.add(name)
             options.append((name, name))
-    if saved is not None and saved not in seen:
+    if saved is not None and saved not in seen and not recorder.is_continuity_name(saved):
         options.append((saved, strings.mic_disconnected_label(saved)))
     return options
 

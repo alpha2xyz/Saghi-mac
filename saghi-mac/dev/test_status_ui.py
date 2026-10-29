@@ -341,10 +341,10 @@ orig_show_error = pill.show_error
 pill.show_error = lambda message, auto_hide_ms=2500: orig_show_error(message, auto_hide_ms=40)
 controller._on_hold_ended()
 check(controller.status == "error", "bit-exact silence -> error")
-check(controller.status_message == strings.INDICATOR_ERROR_MIC, "the error carries the pill's error text")
-check(strings.status_line(controller.status, controller.status_message) == strings.INDICATOR_ERROR_MIC,
+check(controller.status_message == strings.INDICATOR_ERROR_MIC_PERMISSION, "the error carries the pill's error text")
+check(strings.status_line(controller.status, controller.status_message) == strings.INDICATOR_ERROR_MIC_PERMISSION,
       "status_line shows that message for the error")
-check(emitted == [("recording", ""), ("error", strings.INDICATOR_ERROR_MIC)], "recording then error emitted")
+check(emitted == [("recording", ""), ("error", strings.INDICATOR_ERROR_MIC_PERMISSION)], "recording then error emitted")
 controller._show_error(strings.INDICATOR_ERROR_GENERIC)
 check(controller.status_message == strings.INDICATOR_ERROR_GENERIC,
       "a new error message while the pill already shows an error is picked up")

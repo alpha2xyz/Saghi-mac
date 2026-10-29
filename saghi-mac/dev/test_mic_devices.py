@@ -9,7 +9,7 @@ down to two things, both checked here with a fake `sounddevice` module:
      after Saghi started (USB-C earphones) was invisible: not in Settings,
      and recording silently used another device. recorder.refresh_devices()
      re-reads the list; Recorder.start() and the Settings page call it.
-  2. The mic chosen in Settings ("iPhone Microphone", an iPhone Continuity
+  2. The mic chosen in Settings (now: iPhone mics are never used or listed; built-in is the default) ("iPhone Microphone", an iPhone Continuity
      mic) delivered bit-exact silence, and the pill blamed a missing
      permission. A silent *chosen* mic is now named in the error.
 
@@ -175,9 +175,23 @@ check(recorder._open_streams == 0, "a failed open does not leave the count stuck
 print("\n--- 4. A saved mic that is gone falls back to the default, and says so ---")
 rec2 = recorder.Recorder()
 rec2.start(device="Unplugged Headset")
-check(sd.opened_devices[-1] is None, "an unknown saved name opens the system default")
-check(rec2.device_name is None, "device_name is None when the system default is used")
+check(sd.opened_devices[-1] == 2, "an unknown saved name opens the built-in mic (index 2)")
+check(rec2.device_name == "MacBook Air Microphone", "device_name is the built-in mic")
 rec2.cancel()
+rec3 = recorder.Recorder()
+rec3.start(device="iPhone Microphone")
+check(sd.opened_devices[-1] == 2 and rec3.device_name == "MacBook Air Microphone", "a saved iPhone mic is never used: built-in instead")
+rec3.cancel()
+rec3.start(device=None)
+check(sd.opened_devices[-1] == 2, "no saved mic -> built-in, even though the iPhone mic is listed first")
+rec3.cancel()
+saved_hw = sd.hardware
+sd.hardware = [_dev("Some Headset", 1)]
+rec3.start(device=None)
+check(sd.opened_devices[-1] is None and rec3.device_name is None, "no built-in mic at all -> system default")
+rec3.cancel()
+sd.hardware = saved_hw
+check(recorder.is_continuity_name("iPhone Microphone") and not recorder.is_continuity_name("Samsung USB C Earphones"), "iPhone detection by name")
 check(recorder._open_streams == 0, "every stream closed: open-stream count is back to 0")
 
 # ============================================================================
@@ -191,20 +205,22 @@ from saghi.ui.settings_page import SettingsPage  # noqa: E402
 
 app = QApplication.instance() or QApplication(sys.argv)
 sm = SettingsManager()
-sm.update(microphone="iPhone Microphone")
-sd.hardware = [_dev("iPhone Microphone", 1), _dev("MacBook Air Microphone", 1)]
+sm.update(microphone="Studio Mic")
+sd.hardware = [_dev("iPhone Microphone", 1), _dev("MacBook Air Microphone", 1), _dev("Studio Mic", 1)]
 sd._initialize()
 page = SettingsPage(sm)
 items = [page.mic_combo.itemText(i) for i in range(page.mic_combo.count())]
 check("Samsung USB C Earphones" not in items, "page built before the earphones were plugged in")
-check(page.mic_combo.currentData() == "iPhone Microphone", "saved mic selected")
+check("iPhone Microphone" not in items, "the iPhone (Continuity) mic is hidden from the list")
+check(items[0] == strings.MIC_DEFAULT, "first entry is the recommended built-in mic")
+check(page.mic_combo.currentData() == "Studio Mic", "saved mic selected")
 
 sd.hardware.append(_dev("Samsung USB C Earphones", 2))  # plug in while the app runs
 page.refresh_microphones()  # what showEvent / opening the list do
 items = [page.mic_combo.itemText(i) for i in range(page.mic_combo.count())]
 check("Samsung USB C Earphones" in items, "after a refresh the earphones are in the list")
-check(page.mic_combo.currentData() == "iPhone Microphone", "refresh keeps the saved selection")
-check(sm.current.microphone == "iPhone Microphone", "refresh never writes the setting")
+check(page.mic_combo.currentData() == "Studio Mic", "refresh keeps the saved selection")
+check(sm.current.microphone == "Studio Mic", "refresh never writes the setting")
 
 idx = page.mic_combo.findData("Samsung USB C Earphones")
 page.mic_combo.setCurrentIndex(idx)
@@ -248,19 +264,23 @@ engine = SaghiEngine(Path(os.environ.get("SAGHI_DATA_DIR")) / "no-model")  # nev
 sm.update(sound_feedback=False, autopaste=False)
 controller = DictationController(engine, EngineStatusBridge(engine), sm)
 
-controller.recorder = _SilentRecorder("iPhone Microphone")
+controller.recorder = _SilentRecorder("Studio Mic")
+sm.update(microphone="Studio Mic")
 controller._on_hold_started()
 controller._on_hold_ended()
 check(controller.status == "error", "silent chosen mic -> error state")
-check(controller.status_message == strings.mic_silent_text("iPhone Microphone"), "the error names «iPhone Microphone»")
+check(controller.status_message == strings.mic_silent_text("Studio Mic"), "the error names «Studio Mic»")
+check(sm.current.microphone is None, "a silent chosen mic falls back to the built-in mic (setting cleared)")
 check(controller._worker is None, "no transcription was started for silence")
 controller.indicator.hide_indicator()
 
-controller.recorder = _SilentRecorder(None)
-controller._on_hold_started()
-controller._on_hold_ended()
-check(controller.status_message == strings.INDICATOR_ERROR_MIC, "silent system-default mic -> the permission message")
-controller.indicator.hide_indicator()
+for builtin in ("MacBook Air Microphone", None):
+    controller.recorder = _SilentRecorder(builtin)
+    controller._on_hold_started()
+    controller._on_hold_ended()
+    check(controller.status_message == strings.INDICATOR_ERROR_MIC_PERMISSION, f"silent built-in mic ({builtin}) -> the permission message")
+    controller.indicator.hide_indicator()
+check("الخصوصية والأمان" in strings.INDICATOR_ERROR_MIC_PERMISSION and "—" not in strings.INDICATOR_ERROR_MIC_PERMISSION, "permission text points to Privacy & Security, no em dash")
 
 # ============================================================================
 print("\n--- 7. A slow mic (Continuity iPhone mic: 1-10 s to open) never freezes the UI ---")
@@ -302,7 +322,7 @@ def pump_until(cond, timeout=5.0):
 
 
 # 7a: released while the mic is still opening
-controller.recorder = _SlowRecorder(1.0)
+controller.recorder = _SlowRecorder(1.0, device_name="Studio Mic")
 t0 = time.monotonic()
 controller._on_hold_started()
 blocked = time.monotonic() - t0
@@ -312,7 +332,7 @@ controller._on_hold_ended()
 check(controller._busy, "still busy: the mic has not answered yet")
 check(pump_until(lambda: not controller._busy), "the flow settles once the mic answers")
 check(controller.recorder.cancelled, "the late stream is closed, not left recording")
-check(controller.status_message == strings.mic_silent_text("iPhone Microphone"), "the error names the slow mic")
+check(controller.status_message == strings.mic_silent_text("Studio Mic"), "the error names the slow mic")
 controller.indicator.hide_indicator()
 
 # 7b: Esc while the mic is still opening
