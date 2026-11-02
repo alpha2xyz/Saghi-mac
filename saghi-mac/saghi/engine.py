@@ -294,8 +294,11 @@ class SaghiEngine:
                 audio_chunk_index=audio_chunk_index,
                 language=language,
             )
+            # Audio over the clip limit (~35 s) comes back as one string per
+            # clip, not reassembled. We always pass ONE input, so every item
+            # belongs to it: keeping only text[0] silently dropped the rest.
             if isinstance(text, (list, tuple)):
-                text = text[0] if text else ""
+                text = " ".join(t.strip() for t in text if t and t.strip())
             return text
 
         texts = self._model.transcribe(

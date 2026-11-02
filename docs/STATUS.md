@@ -2,6 +2,11 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-02 (later) — model comparison + long-audio cut-off fix (same branch)
+**Compared** Saghi's Cohere model with Whisper large-v3-turbo (mlx) and Nemotron 3.5 Transcribe on the same 6 Arabic clips (4 short read sentences with a known text, 2 real voice notes). Word error rate on the read sentences: Cohere 8%, Whisper 15%, Nemotron 17%. Cohere was also fastest (9.5 s for all six after a 3.4 s load) and clearest on the voice notes. Decision input: no need to add another model for quality.
+
+**Bug found and fixed:** audio over ~35 s lost everything after the first clip. The processor returns one string per 35 s clip and `_infer_array` kept only `text[0]`. Now it joins them. Verified on a 65 s clip: full text returned. This hit long dictations too (same path via `transcribe_array`).
+
 ## 2026-11-02 — Mac session (owner's Mac, branch `claude/single-instance-slim`)
 **Found:** two full Saghi copies running after boot (login LaunchAgent + a manual open 17 s later; no single-instance guard). Installed app is 6.2 GB: model 3.8 GB, venv 2.3 GB, of which PySide6 is 1.2 GB. The engine is Cohere transcribe-arabic, not Whisper.
 
