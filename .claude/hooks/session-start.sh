@@ -10,6 +10,6 @@ if command -v apt-get >/dev/null 2>&1; then
     || echo "session-start: apt install failed (GUI tests may not run)" >&2
 fi
 python3 -m pip install -q --disable-pip-version-check \
-  numpy PySide6 soundfile sounddevice soxr pynput fastapi uvicorn httpx python-multipart keyring keyrings.alt \
+  numpy PySide6-Essentials soundfile sounddevice soxr pynput fastapi uvicorn httpx python-multipart keyring keyrings.alt \
   >/dev/null 2>&1 || echo "session-start: pip install failed" >&2
 exit 0

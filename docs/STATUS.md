@@ -2,6 +2,17 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-02 — Mac session (owner's Mac, branch `claude/single-instance-slim`)
+**Found:** two full Saghi copies running after boot (login LaunchAgent + a manual open 17 s later; no single-instance guard). Installed app is 6.2 GB: model 3.8 GB, venv 2.3 GB, of which PySide6 is 1.2 GB. The engine is Cohere transcribe-arabic, not Whisper.
+
+**Fix 1, one copy only:** `saghi/ui/single_instance.py` (QLocalServer named from the data dir). A second launch asks the first to show its window and exits. Verified with two real `saghi.ui.app` processes: the second exited in 0.3 s and the first logged the show request. New test `dev/test_single_instance.py`.
+
+**Fix 2, smaller:** `pyside6` -> `pyside6_essentials` in `dev/requirements-arm64.txt` (Saghi uses only QtCore/Gui/Widgets/Network; Addons is 885 MB). The installer removes the old full PySide6 from an existing venv before installing. Checked on an APFS clone of the installed venv: 2.3 GB -> 1.4 GB; test_single_instance, test_gui_smoke (112), test_status_ui (161), test_pill (158) pass; real model transcribed an Arabic sample through the GUI worker and the CLI. (test_gui_filejob's chunk-count check needs a 23 s WAV; the sample was shorter.)
+
+**Not removed:** librosa/numba/scipy/sklearn (~320 MB). The model's own bundled code imports librosa at load time.
+
+**Next:** merge (owner's yes), build a release so installs get both fixes; optional: try an int8/fp16 model to cut the 3.8 GB (quality check first).
+
 ## 2026-10-29 — Mac session (owner's MacBook Air, branch `claude/mac-mic-only`)
 **Solved:** "Saghi never works". Since the 2026-10-12 14:23 code copy into the unsigned `Saghi.app`, every mic (built-in included) gave bit-exact silence inside the app while the same mic gave real audio to a terminal Python: the macOS Microphone grant was stale. Plus the saved mic was the owner's iPhone (Continuity), slow and silent.
 

@@ -61,9 +61,11 @@ python-multipart==0.0.32
 
 # Phase 4 (GUI, saghi/ui/) -- PySide6. Latest at resolution time; this
 # is the package that actually sets the bundle's macOS floor (13.0 --
-# see note above). shiboken6/PySide6_Essentials/PySide6_Addons resolve
-# automatically at the matching 6.11.2 version via pyside6's own pins.
-pyside6==6.11.2
+# see note above). Only the Essentials half: Saghi uses QtCore/QtGui/
+# QtWidgets/QtNetwork, all in Essentials. The full `pyside6` package also
+# pulls PySide6_Addons (~885 MB installed: 3D, WebEngine, Multimedia, ...),
+# none of which Saghi imports. shiboken6 resolves via Essentials' own pin.
+pyside6_essentials==6.11.2
 
 # Phase 5 (live dictation). All of these are at PyPI-latest;
 # no Apple-Silicon-specific version exists to move to.
