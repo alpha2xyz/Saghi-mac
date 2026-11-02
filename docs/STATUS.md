@@ -2,6 +2,22 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-02 (later) — model comparison + long-audio cut-off fix (same branch)
+**Compared** Saghi's Cohere model with Whisper large-v3-turbo (mlx) and Nemotron 3.5 Transcribe on the same 6 Arabic clips (4 short read sentences with a known text, 2 real voice notes). Word error rate on the read sentences: Cohere 8%, Whisper 15%, Nemotron 17%. Cohere was also fastest (9.5 s for all six after a 3.4 s load) and clearest on the voice notes. Decision input: no need to add another model for quality.
+
+**Bug found and fixed:** audio over ~35 s lost everything after the first clip. The processor returns one string per 35 s clip and `_infer_array` kept only `text[0]`. Now it joins them. Verified on a 65 s clip: full text returned. This hit long dictations too (same path via `transcribe_array`).
+
+## 2026-11-02 — Mac session (owner's Mac, branch `claude/single-instance-slim`)
+**Found:** two full Saghi copies running after boot (login LaunchAgent + a manual open 17 s later; no single-instance guard). Installed app is 6.2 GB: model 3.8 GB, venv 2.3 GB, of which PySide6 is 1.2 GB. The engine is Cohere transcribe-arabic, not Whisper.
+
+**Fix 1, one copy only:** `saghi/ui/single_instance.py` (QLocalServer named from the data dir). A second launch asks the first to show its window and exits. Verified with two real `saghi.ui.app` processes: the second exited in 0.3 s and the first logged the show request. New test `dev/test_single_instance.py`.
+
+**Fix 2, smaller:** `pyside6` -> `pyside6_essentials` in `dev/requirements-arm64.txt` (Saghi uses only QtCore/Gui/Widgets/Network; Addons is 885 MB). The installer removes the old full PySide6 from an existing venv before installing. Checked on an APFS clone of the installed venv: 2.3 GB -> 1.4 GB; test_single_instance, test_gui_smoke (112), test_status_ui (161), test_pill (158) pass; real model transcribed an Arabic sample through the GUI worker and the CLI. (test_gui_filejob's chunk-count check needs a 23 s WAV; the sample was shorter.)
+
+**Not removed:** librosa/numba/scipy/sklearn (~320 MB). The model's own bundled code imports librosa at load time.
+
+**Next:** merge (owner's yes), build a release so installs get both fixes; optional: try an int8/fp16 model to cut the 3.8 GB (quality check first).
+
 ## 2026-10-29 — Mac session (owner's MacBook Air, branch `claude/mac-mic-only`)
 **Solved:** "Saghi never works". Since the 2026-10-12 14:23 code copy into the unsigned `Saghi.app`, every mic (built-in included) gave bit-exact silence inside the app while the same mic gave real audio to a terminal Python: the macOS Microphone grant was stale. Plus the saved mic was the owner's iPhone (Continuity), slow and silent.
 

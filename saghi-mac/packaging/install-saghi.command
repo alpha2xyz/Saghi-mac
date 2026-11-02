@@ -157,6 +157,13 @@ else
 fi
 
 # ---- 3. offline wheel install -------------------------------------------
+# Older installs carry the full `pyside6` (Essentials + ~885 MB Addons).
+# Saghi needs Essentials only. `pyside6` owns PySide6/__init__.py, so all
+# three go together and the -r install below puts Essentials back whole.
+if "$VENV_DIR/bin/pip" show pyside6_addons >/dev/null 2>&1; then
+  say "   إزالة مكتبات واجهة غير مستخدمة (توفير قرابة 900 ميجا)..."
+  "$VENV_DIR/bin/pip" uninstall -y pyside6 pyside6_addons pyside6_essentials --quiet
+fi
 say "3) تثبيت المكتبات (بدون إنترنت، من الحزمة المرفقة)..."
 "$VENV_DIR/bin/pip" install --no-index --find-links "$BUNDLE_DIR/wheels" \
   -r "$BUNDLE_DIR/requirements-arm64.txt" --quiet

@@ -252,8 +252,15 @@ def main(argv: Optional[list] = None) -> int:
 
     from .. import diagnostics
 
+    from . import single_instance
+
     diagnostics.setup_logging()
+    QApplication.instance() or QApplication(list(argv) if argv is not None else sys.argv)
+    if single_instance.notify_running():
+        logger.info("Saghi is already running -- showed its window, exiting this copy")
+        return 0
     ctx = build(argv)
+    instance_server = single_instance.listen(ctx.tray.show_main_window)  # noqa: F841 (kept alive)
     # Heartbeat from the UI thread; a stall >5s logs every thread's stack
     # to saghi.log (see diagnostics.py) -- the evidence a freeze needs.
     watchdog = diagnostics.FreezeWatchdog()
