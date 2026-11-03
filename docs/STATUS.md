@@ -16,7 +16,7 @@ Newest first. Every session adds an entry before it ends.
 
 **Not removed:** librosa/numba/scipy/sklearn (~320 MB). The model's own bundled code imports librosa at load time.
 
-**Done:** merged (PR #5) and released as **v0.2.1** (download 3.96 GB -> 3.63 GB). **Next:** owner updates from the app, then check one copy only + app size; optional: try an int8/fp16 model to cut the 3.8 GB (quality check first).
+**Done:** merged (PR #5) and released as **v0.2.1** (download 3.96 GB -> 3.63 GB). **Verified live 2026-11-03 on the owner's Mac:** updated to 0.2.1 in-app; app 6.2 GB -> 5.4 GB (venv 1.4 GB, Essentials only); one process; launching the bundle again logged "already running" and exited; dictations transcribe (1.4-1.9 s). **Next:** optional: try an int8/fp16 model to cut the 3.8 GB (quality check first).
 
 ## 2026-10-29 — Mac session (owner's MacBook Air, branch `claude/mac-mic-only`)
 **Solved:** "Saghi never works". Since the 2026-10-12 14:23 code copy into the unsigned `Saghi.app`, every mic (built-in included) gave bit-exact silence inside the app while the same mic gave real audio to a terminal Python: the macOS Microphone grant was stale. Plus the saved mic was the owner's iPhone (Continuity), slow and silent.
