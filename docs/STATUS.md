@@ -2,6 +2,13 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-17 — idle model unload (owner's Mac, branch `claude/idle-unload`)
+**Found:** Saghi sat idle holding a 10 GB footprint (model loaded once, never freed), which pushed the owner's 32 GB Mac into 11.6 GB compressed memory and 3.7 GB swap.
+
+**Fix:** `SaghiEngine` now unloads the model after 600 s with no transcription (`idle_unload_s`, env `SAGHI_IDLE_UNLOAD_S` overrides; one daemon timer, re-checks `last_used` under the engine lock, so long file jobs are not cut). The next dictation reloads it lazily. `EngineStatusBridge` goes back to "cold" after an unload. New test `dev/test_idle_unload.py` (17 checks); test_status_ui (161) and test_gui_smoke (112) pass.
+
+**Measured with the real model on mps:** footprint 9.3 GB loaded -> 0.9 GB after the idle unload; reload took 3.4 s and transcribed again. **Next:** merge, release, install on the owner's Mac.
+
 ## 2026-11-02 (later) — model comparison + long-audio cut-off fix (same branch)
 **Compared** Saghi's Cohere model with Whisper large-v3-turbo (mlx) and Nemotron 3.5 Transcribe on the same 6 Arabic clips (4 short read sentences with a known text, 2 real voice notes). Word error rate on the read sentences: Cohere 8%, Whisper 15%, Nemotron 17%. Cohere was also fastest (9.5 s for all six after a 3.4 s load) and clearest on the voice notes. Decision input: no need to add another model for quality.
 
