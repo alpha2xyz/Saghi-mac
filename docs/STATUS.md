@@ -2,6 +2,17 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-18 (later) — GGUF one-week trial on the owner's Mac (branch `claude/gguf-engine-v2`)
+**Installed for the trial:** the branch's changed files copied into the installed v0.2.1 bundle (`Resources/app/saghi/`), `transcribe-cli` (transcribe.cpp `adfc502`) into `Resources/bin/`, settings `"engine": "gguf"` with `gguf_model` pointing at the local Q6_K file; bundle re-signed ad-hoc. Backup of the old code and settings in `~/.saghi-work/backup-before-gguf-trial/` (outside the repo). `_version.py` left at 0.2.1.
+
+**Verified live:** API health reports `stack: gguf, device: metal`; Arabic clips transcribe through the running app: first call 5.6 s (cold start: Metal and the model file paging in), then 0.25-0.5 s per 6-11 s clip. Whole app footprint 196 MB (was 9.3 GB with the PyTorch model loaded).
+
+**Not verified yet:** dictation with the mic after the re-sign (an earlier session found a re-sign can leave the Microphone grant stale; fix: `tccutil reset Microphone io.github.alpha2xyz.saghi-mac`, then allow the prompt).
+
+**Roll back:** quit Saghi, copy the backup `app/` over `Resources/app/`, restore `settings.json` (or set `"engine": "pytorch"`), re-sign ad-hoc.
+
+**Next:** owner uses it for a week (to 2026-11-25). If no difference is noticed: release with Q6_K bundled as the only engine (option 1 in the owner's page).
+
 ## 2026-11-18 — GGUF engine (owner's Mac, branch `claude/gguf-engine-v2`, from `main`)
 **Area:** `saghi/gguf_engine.py`, `saghi/engines.py`, `saghi/vocabulary.py`, the `engine` / `gguf_model` settings, `dev/test_gguf_engine.py`, `dev/bench_gguf.py`. Full results: `docs/GGUF_RESULTS.md`.
 
