@@ -7,7 +7,7 @@ Newest first. Every session adds an entry before it ends.
 
 **Verified live:** API health reports `stack: gguf, device: metal`; Arabic clips transcribe through the running app: first call 5.6 s (cold start: Metal and the model file paging in), then 0.25-0.5 s per 6-11 s clip. Whole app footprint 196 MB (was 9.3 GB with the PyTorch model loaded).
 
-**Not verified yet:** dictation with the mic after the re-sign (an earlier session found a re-sign can leave the Microphone grant stale; fix: `tccutil reset Microphone io.github.alpha2xyz.saghi-mac`, then allow the prompt).
+**Mic verified live:** after the re-sign the owner ran `tccutil reset Microphone io.github.alpha2xyz.saghi-mac` and allowed the prompt; dictation works (log: 8.71 s captured, peak 0.20, transcribed in 0.3 s). Owner's first impression: "very fast", about 90% accurate on their own dictation.
 
 **Roll back:** quit Saghi, copy the backup `app/` over `Resources/app/`, restore `settings.json` (or set `"engine": "pytorch"`), re-sign ad-hoc.
 
