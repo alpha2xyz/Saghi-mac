@@ -149,7 +149,9 @@ def build(argv: Optional[list] = None) -> AppContext:
     # Interface typeface (Amiri by default, bundled) -- before any widget exists.
     theme.apply_ui_font(app, settings_manager.current.ui_font)
 
-    engine = SaghiEngine(DEFAULT_MODEL_DIR)
+    from ..engines import make_engine
+
+    engine = make_engine(DEFAULT_MODEL_DIR)  # SAGHI_ENGINE, else the "engine" setting
     engine_status = EngineStatusBridge(engine)
 
     api_thread = ApiServerThread(engine, DEFAULT_MODEL_DIR, port=API_PORT)

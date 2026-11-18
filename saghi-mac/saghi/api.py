@@ -141,7 +141,9 @@ def create_app(model_dir: Union[str, Path, None] = None, engine: Optional[SaghiE
     """
     resolved_model_dir = Path(model_dir) if model_dir else DEFAULT_MODEL_DIR
     if engine is None:
-        engine = SaghiEngine(resolved_model_dir)
+        from .engines import make_engine
+
+        engine = make_engine(resolved_model_dir)
 
     # Set right before engine.load()/.transcribe() is invoked for the first
     # time, cleared in a finally right after -- purely so /api/health can

@@ -63,6 +63,13 @@ page):
     ui_font                 str   "amiri" | "system", default "amiri" -- the
                                     interface typeface (Amiri is bundled in
                                     ui/assets/fonts/, SIL OFL)
+    engine                  str   "pytorch" | "gguf", default "pytorch" --
+                                    the speech engine (engines.py). "gguf"
+                                    runs the same model quantized on
+                                    transcribe.cpp (gguf_engine.py); applies
+                                    at the next launch. SAGHI_ENGINE overrides.
+    gguf_model              str   default "" -- path to the .gguf file; ""
+                                    = SAGHI_GGUF_MODEL or the bundled one
 """
 
 from __future__ import annotations
@@ -89,6 +96,7 @@ VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
 VALID_RETENTION_DAYS = (0, 7, 30, 90)
 VALID_PILL_MODES = ("always", "active")
 VALID_UI_FONTS = ("amiri", "system")
+VALID_ENGINES = ("pytorch", "gguf")
 
 
 @dataclass
@@ -113,6 +121,8 @@ class Settings:
     floating_pill_mode: str = "always"
     floating_pill_pos: Optional[list] = None
     ui_font: str = "amiri"
+    engine: str = "pytorch"
+    gguf_model: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -155,6 +165,10 @@ def _coerce(data: dict) -> Settings:
     s.floating_pill_pos = _coerce_point(s.floating_pill_pos)
     if s.ui_font not in VALID_UI_FONTS:
         s.ui_font = defaults.ui_font
+    if s.engine not in VALID_ENGINES:
+        s.engine = defaults.engine
+    if not isinstance(s.gguf_model, str):
+        s.gguf_model = defaults.gguf_model
     if not isinstance(s.last_update_check, str):
         s.last_update_check = defaults.last_update_check
     retention = s.history_retention_days

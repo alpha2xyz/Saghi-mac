@@ -35,6 +35,7 @@ import sys
 from pathlib import Path
 
 from .engine import SaghiEngine
+from .engines import make_engine
 
 # Default location of the bundled model (the installed app's copy).
 # Overridable with --model-dir, or with the SAGHI_MODEL_DIR env var (mirrors paths.py's
@@ -57,7 +58,7 @@ def _configure_logging() -> None:
 
 def cmd_transcribe(args: argparse.Namespace) -> int:
     _configure_logging()
-    engine = SaghiEngine(args.model_dir)
+    engine = make_engine(args.model_dir, args.engine)
 
     print(f"Loading model from {args.model_dir} ...", file=sys.stderr)
     engine.load()
@@ -101,7 +102,7 @@ def cmd_filejob(args: argparse.Namespace) -> int:
 
     from .filejobs import FileJob
 
-    engine = SaghiEngine(args.model_dir)
+    engine = make_engine(args.model_dir, args.engine)
     job = FileJob(
         engine,
         args.audio,
@@ -172,6 +173,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MODEL_DIR,
         dest="model_dir",
         help="Path to the local model checkpoint directory",
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["pytorch", "gguf"],
+        default=None,
+        help="Speech engine (default: SAGHI_ENGINE or the 'engine' setting, else pytorch)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

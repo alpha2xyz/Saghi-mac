@@ -2,6 +2,19 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-18 — GGUF engine (owner's Mac, branch `claude/gguf-engine-v2`, from `main`)
+**Area:** `saghi/gguf_engine.py`, `saghi/engines.py`, `saghi/vocabulary.py`, the `engine` / `gguf_model` settings, `dev/test_gguf_engine.py`, `dev/bench_gguf.py`. Full results: `docs/GGUF_RESULTS.md`.
+
+**Built:** an opt-in second engine: the same Cohere Arabic model as GGUF on transcribe.cpp (subprocess, no torch). Long audio is split exactly like the PyTorch path (cut points checked identical). `<hesitation>` stripped; chunks stopped by transcribe.cpp's repetition guard keep their text and are retried once as two halves. Default engine stays PyTorch (`"engine": "gguf"` in settings.json, `SAGHI_ENGINE=gguf` or `cli.py --engine gguf` to try it).
+
+**Measured (Q8/Q6/Q5/Q4):** every quant matches or beats PyTorch WER (SADA 31.7% → 26.7-31.7%, MSA 4.3%, synthetic 8.3%); the 90 s clip is complete (242 words, no loop); real set within 0.8-2.5% of PyTorch's text; a 20.8 min file in 27-45 s (PyTorch 302 s) with no loop. Memory: file size + ~0.25 GB (Q4 ~1.8 GB) vs PyTorch 9-21 GB. Custom vocabulary: transcribe.cpp ignores `--vocabulary` for this model, so it is a post-correction; it changed no WER and made one wrong change (a brand name that is also a common word).
+
+**Recommendation:** Q6_K (1.97 GB, ~2.2 GB in memory) as the GGUF default: on long real speech through the app's file-job path it tracks PyTorch like Q8_0 (4.2% on clean speech), Q4_K_M drifts twice as far (7.6%). File jobs with GGUF: 74 s vs PyTorch 242 s for 20.8 min (one process per segment; batching per read block would speed it up).
+
+**Tests:** `test_gguf_engine.py` (40 checks + optional real run), test_cleanup, test_segmentation, test_new_options pass.
+
+**Not done / next:** the GUI was not launched with GGUF (GUI smoke/status tests pass). transcribe-cli and the .gguf are not bundled in the app yet (needs the build workflow to compile transcribe.cpp and a release asset for the model; owner's yes). No UI switch yet. `claude/idle-unload` (local, unmerged) also edits `engine.py`/`app.py`; merge it before or after this and re-run the tests (the GGUF engine holds no model, so idle unload does not apply to it).
+
 ## 2026-11-02 (later) — model comparison + long-audio cut-off fix (same branch)
 **Compared** Saghi's Cohere model with Whisper large-v3-turbo (mlx) and Nemotron 3.5 Transcribe on the same 6 Arabic clips (4 short read sentences with a known text, 2 real voice notes). Word error rate on the read sentences: Cohere 8%, Whisper 15%, Nemotron 17%. Cohere was also fastest (9.5 s for all six after a 3.4 s load) and clearest on the voice notes. Decision input: no need to add another model for quality.
 
