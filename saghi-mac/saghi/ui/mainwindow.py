@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_manager, engine, engine_status: EngineStatusBridge, parent=None):
         super().__init__(parent)
         self.setWindowTitle(strings.APP_TITLE)
-        self.resize(680, 640)
+        self.resize(680, 560)
         self.setMinimumSize(600, 480)
 
         central = QWidget()

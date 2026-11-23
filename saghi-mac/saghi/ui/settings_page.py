@@ -182,7 +182,7 @@ class SettingsPage(QWidget):
         self._mic_options: List[Tuple[Optional[str], str]] = []
         self.mic_combo = _RefreshingComboBox(self.refresh_microphones)
         self.mic_combo.setMinimumWidth(_FIELD_WIDTH)
-        self.mic_combo.setMaximumWidth(_FIELD_WIDTH + 20)
+        self.mic_combo.setMinimumWidth(_FIELD_WIDTH + 60)
         self.refresh_microphones()
         self.mic_combo.currentIndexChanged.connect(self._on_mic_changed)
         dictation.add_row(strings.SETTINGS_MIC_LABEL, self.mic_combo, strings.SETTINGS_MIC_HINT)
