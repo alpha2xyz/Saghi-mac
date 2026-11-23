@@ -82,12 +82,25 @@ check(ctx.main_window.filejob_page is not None, "file job page constructed")
 check(ctx.main_window.settings_page is not None, "settings page constructed")
 check(ctx.engine_status.state == "cold", "engine status starts cold (model not loaded at startup)")
 check(ctx.engine.is_loaded is False, "engine.is_loaded is False at startup (never loads eagerly)")
-check(ctx.main_window.nav.count() == 3, "sidebar has exactly 3 nav entries")
+nav = ctx.main_window.nav
+check(set(nav.rows) == {"home", "settings", "settings.dictation", "settings.text", "settings.app", "history"},
+      "sidebar: Home, Settings (Dictation / Text / App), History")
+check(not nav.submenu_open, "the Settings sub-menu starts folded")
 
-# Switching nav pages must not raise.
-for row in range(3):
-    ctx.main_window.nav.setCurrentRow(row)
-    check(ctx.main_window.pages.currentIndex() == row, f"switching to nav row {row} updates the stacked page")
+# Switching pages must not raise; Settings opens its sub-menu and picks a section.
+for i, (key, page, section) in enumerate((
+    ("home", 0, None), ("settings.dictation", 1, "dictation"), ("settings.text", 1, "text"),
+    ("settings.app", 1, "app"), ("history", 2, None),
+)):
+    nav.select(key)
+    check(ctx.main_window.pages.currentIndex() == page, f"{key} shows page {page}")
+    if section:
+        check(ctx.main_window.settings_page.current_section() == section, f"{key} shows the {section} sub-page")
+        check(nav.submenu_open, f"{key}: the sub-menu is open")
+        check(nav.rows["settings"].selected and nav.rows[key].selected, f"{key}: Settings and the entry are highlighted")
+check(not nav.submenu_open, "leaving Settings folds the sub-menu")
+nav.select("settings")
+check(nav.current == "settings.dictation", "clicking Settings opens its first section")
 
 ctx.quit_fn()
 print("Test 1 passed.\n")

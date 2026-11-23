@@ -50,7 +50,7 @@ TRAY_ENGINE_PREFIX = "المحرك: "
 
 # ---- engine status (shared by the tray menu line and the header chip) ---
 
-ENGINE_COLD = "بارد"
+ENGINE_COLD = "جاهز"  # the model loads on the first dictation; nothing to wait for
 ENGINE_LOADING = "جارٍ التحميل"
 ENGINE_READY_SUFFIX = "جاهز"
 
@@ -82,6 +82,10 @@ NAV_SETTINGS = "الإعدادات"
 
 PAGE_HOME_SUBTITLE = "ملخص استخدامك وكيف تبدأ"
 PAGE_CONFIG_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
+SETTINGS_SUBTITLE_DICTATION = "الاختصار والميكروفون واللغة"
+SETTINGS_SUBTITLE_TEXT = "تنظيف النص وإعادة صياغته"
+SETTINGS_SUBTITLE_APP = "التشغيل والسجل والتحديثات"
+LOCAL_CHIP = "محلي، بدون إنترنت"
 PAGE_HISTORY_SUBTITLE = "كل ما كتبته بصوتك، محفوظ على جهازك فقط"
 PAGE_FILEJOB_SUBTITLE = "حوّل تسجيلًا صوتيًا أو مقطع فيديو طويلًا إلى نص"
 PAGE_SETTINGS_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
@@ -230,9 +234,9 @@ HOME_HOWTO_HOLD_ONLY = "اضغط مطولًا وتكلم ثم ارفع"
 HOME_HOWTO_ESC = "إلغاء التسجيل"
 HOME_MODEL_TITLE = "النموذج"
 HOME_MODEL_FAST = "صاغي السريع"
-HOME_MODEL_FAST_HINT = "أسرع وأخف على الذاكرة"
+HOME_MODEL_FAST_HINT = "دقيقة الكلام تنكتب في حوالي 3 ثواني · يحتاج 0.2 GB من الذاكرة"
 HOME_MODEL_FULL = "صاغي الكامل"
-HOME_MODEL_FULL_HINT = "الأدق، يحتاج ذاكرة أكبر"
+HOME_MODEL_FULL_HINT = "دقيقة الكلام تنكتب في حوالي 12 ثانية · يحتاج 9 GB من الذاكرة"
 HOME_MODEL_FAST_MISSING = "غير متوفر على هذا الجهاز"
 HOME_MODEL_RESTART_NOTE = "يتطبق بعد إعادة التشغيل"
 HOME_MODEL_RESTART_BUTTON = "أعد التشغيل الآن"

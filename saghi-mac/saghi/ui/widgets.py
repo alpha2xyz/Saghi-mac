@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import (
+    QVariantAnimation,
     Property,
     QEasingCurve,
     QPropertyAnimation,
@@ -36,6 +37,8 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QStackedWidget,
+    QGraphicsOpacityEffect,
     QAbstractButton,
     QCheckBox,
     QFrame,
@@ -337,3 +340,40 @@ def confirm_destructive(parent, title: str, text: str) -> bool:
     box.setDefaultButton(cancel_btn)
     box.exec()
     return box.clickedButton() is delete_btn
+
+
+class FadeStack(QStackedWidget):
+    """A QStackedWidget whose new page fades and rises in (~0.22 s) instead of popping."""
+
+    FADE_MS = 220
+    RISE_PX = 8
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802 -- Qt override
+        if index == self.currentIndex() or not self.isVisible():
+            super().setCurrentIndex(index)
+            return
+        super().setCurrentIndex(index)
+        page = self.currentWidget()
+        if page is None:
+            return
+        effect = QGraphicsOpacityEffect(page)
+        effect.setOpacity(0.0)
+        page.setGraphicsEffect(effect)
+        anim = QVariantAnimation(page)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setDuration(self.FADE_MS)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        base = page.pos()
+
+        def frame(v) -> None:
+            effect.setOpacity(float(v))
+            page.move(base.x(), base.y() + int(round(self.RISE_PX * (1 - float(v)))))
+
+        def done() -> None:
+            page.move(base)
+            page.setGraphicsEffect(None)  # no effect left: full-speed painting
+
+        anim.valueChanged.connect(frame)
+        anim.finished.connect(done)
+        anim.start(QVariantAnimation.DeletionPolicy.DeleteWhenStopped)

@@ -324,21 +324,28 @@ class SettingsPage(QWidget):
         self._sm = settings_manager
         s = settings_manager.current
 
+        # Three sub-pages (Dictation / Text / App), picked from the sidebar's
+        # Settings sub-menu (MainWindow), each short enough to need little scrolling.
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setObjectName("pageScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        outer.addWidget(scroll)
-
-        body = QWidget()
-        body.setObjectName("scrollBody")
-        scroll.setWidget(body)
-        column = QVBoxLayout(body)
-        column.setContentsMargins(24, 0, 24, 20)
-        column.setSpacing(16)
+        self.sections = widgets.FadeStack()
+        outer.addWidget(self.sections)
+        columns = []
+        for _ in range(3):
+            scroll = QScrollArea()
+            scroll.setObjectName("pageScroll")
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            body = QWidget()
+            body.setObjectName("scrollBody")
+            scroll.setWidget(body)
+            col = QVBoxLayout(body)
+            col.setContentsMargins(24, 0, 24, 20)
+            col.setSpacing(16)
+            columns.append(col)
+            self.sections.addWidget(scroll)
+        col_dictation, col_text, col_app = columns
 
         # ---- الإملاء --------------------------------------------------------
         dictation = widgets.SettingsCard()
@@ -404,7 +411,7 @@ class SettingsPage(QWidget):
         self.save_rec_check.toggled.connect(lambda v: self._sm.update(save_recordings=v))
         dictation.add_row(strings.SETTINGS_SAVE_RECORDINGS_LABEL, self.save_rec_check, strings.SETTINGS_SAVE_RECORDINGS_HINT)
 
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_DICTATION, dictation))
+        col_dictation.addWidget(dictation)
 
         # ---- النص ------------------------------------------------------------
         ai = widgets.SettingsCard()
@@ -478,7 +485,7 @@ class SettingsPage(QWidget):
             ai.add_widget(widgets.hbox(self.openrouter_test_btn, self.openrouter_test_result_label, spacing=12))
         )
         self._on_openrouter_enabled_changed(s.openrouter_enabled, save=False)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_TEXT, ai))
+        col_text.addWidget(ai)
 
         # ---- التطبيق ---------------------------------------------------------
         app_card = widgets.SettingsCard()
@@ -530,7 +537,7 @@ class SettingsPage(QWidget):
         self.quit_btn = QPushButton(strings.SETTINGS_QUIT_BUTTON)
         self.quit_btn.clicked.connect(self.quit_requested.emit)
         app_card.add_row(strings.SETTINGS_QUIT_LABEL, self.quit_btn, strings.SETTINGS_QUIT_HINT)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_APP, app_card))
+        col_app.addWidget(app_card)
 
         self._openrouter_test_worker: Optional[_TestConnectionWorker] = None
 
@@ -542,8 +549,21 @@ class SettingsPage(QWidget):
             combo.setMinimumWidth(0)
             combo.setFixedWidth(_FIELD_WIDTH)
         self.hotkey_recorder.setFixedWidth(_FIELD_WIDTH + 50)
+        self.mic_combo.setFixedWidth(_FIELD_WIDTH + 70)
 
-        column.addStretch()
+        for col in columns:
+            col.addStretch()
+
+    # ---- sub-pages --------------------------------------------------------
+
+    SECTION_KEYS = ("dictation", "text", "app")
+
+    def show_section(self, key: str) -> None:
+        """Show one sub-page: "dictation" | "text" | "app"."""
+        self.sections.setCurrentIndex(self.SECTION_KEYS.index(key))
+
+    def current_section(self) -> str:
+        return self.SECTION_KEYS[self.sections.currentIndex()]
 
     # ---- helpers ----------------------------------------------------------
 

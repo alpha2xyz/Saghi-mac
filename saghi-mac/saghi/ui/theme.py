@@ -101,7 +101,8 @@ BRAND_MELON = "#FC6C85"
 STATUS_COLORS = {
     "ready": "#34C759",
     "loading": "#FF9F0A",
-    "cold": "#8E8E93",
+    "cold": "#34C759",  # loads on first use: shown as ready
+    "local": "#0A84FF",
 }
 
 # Preset colours offered for the recording indicator (Settings page); the

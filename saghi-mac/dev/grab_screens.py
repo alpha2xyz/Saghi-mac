@@ -129,13 +129,13 @@ def _set_scheme(app, dark: bool) -> None:
 
 def _grab_all(app, window, suffix: str) -> None:
     # History page
-    window.nav.setCurrentRow(0)
+    window.navigate("home")
     app.processEvents()
     _grab(window, OUT_DIR / f"page-history{suffix}.png")
 
     # File job page -- idle state
     fj = window.filejob_page
-    window.nav.setCurrentRow(1)
+    window.navigate("settings.dictation")
     app.processEvents()
     if not suffix:
         _grab(window, OUT_DIR / "page-filejob-idle.png")
@@ -149,7 +149,7 @@ def _grab_all(app, window, suffix: str) -> None:
     _grab(window, OUT_DIR / f"page-filejob-running{suffix}.png")
 
     # Settings page
-    window.nav.setCurrentRow(2)
+    window.navigate("history")
     app.processEvents()
     _grab(window, OUT_DIR / f"page-settings{suffix}.png")
 

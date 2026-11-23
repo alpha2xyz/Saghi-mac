@@ -78,14 +78,23 @@ for dark in (False, True):
     page.close()
 
 page = HomePage(sm)
+page.finish_animations()
 check(page.words_stat.value.text() == "7", "words card shows 7")
 check(page.spoken_stat.value.text() == strings.format_duration(hs["spoken_s"]), "spoken card matches")
 check(page.saved_stat.value.text() == "0 ث", "saved card is 0 when speaking is slower than typing")
 history.add_entry(source="dictation", language="ar", cleanup_level="light", duration_s=5.0,
                   inference_s=1.0, raw_text="x", text=" ".join(["كلمة"] * 200))
 page.refresh()
+page.finish_animations()
 check(page.words_stat.value.text() == "207", "refresh() picks up a new history entry")
 check(page.saved_stat.value.text() != "0 ث", "...and time saved becomes positive")
+
+# count-up: opening the page starts the numbers from 0
+page.refresh(count_up=True)
+check(page.words_stat._anim.state() == page.words_stat._anim.State.Running, "opening the page counts up")
+check(page.words_stat.target == 207, "...towards the real value")
+page.finish_animations()
+check(page.words_stat.value.text() == "207", "...and lands on it")
 
 # hotkey line
 check(strings.hotkey_symbols(sm.current.hotkey) in page.hotkey_cap.text(), "hotkey key-cap shows macOS symbols")

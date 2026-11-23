@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QTimer, Qt, QVariantAnimation, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -60,18 +60,50 @@ def gguf_available(gguf_model: str = "") -> bool:
 
 
 class _Stat(QFrame):
-    def __init__(self, caption: str) -> None:
+    """A stat card whose number counts up to its value (ease-out, ~0.9 s)."""
+
+    COUNT_MS = 900
+
+    def __init__(self, caption: str, fmt=lambda v: str(int(round(v)))) -> None:
         super().__init__()
         self.setObjectName("card")
+        self._fmt = fmt
+        self._shown = 0.0
+        self._target = 0.0
         v = QVBoxLayout(self)
         v.setContentsMargins(12, 12, 12, 12)
         v.setSpacing(4)
-        self.value = widgets.label("0", "statValue")
+        self.value = widgets.label(fmt(0), "statValue")
         self.value.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cap = widgets.label(caption, "rowHint")
         cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v.addWidget(self.value)
         v.addWidget(cap)
+        self._anim = QVariantAnimation(self)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._on_frame)
+
+    def _on_frame(self, v) -> None:
+        self._shown = float(v)
+        self.value.setText(self._fmt(self._shown))
+
+    def set_value(self, target: float, from_zero: bool = False) -> None:
+        """Count from 0 (page just opened) or from what is shown now (a live refresh)."""
+        target = float(target)
+        start = 0.0 if from_zero else self._shown
+        self._target = target
+        self._anim.stop()
+        if start == target:
+            self._on_frame(target)
+            return
+        self._anim.setStartValue(start)
+        self._anim.setEndValue(target)
+        self._anim.setDuration(self.COUNT_MS if from_zero else 500)
+        self._anim.start()
+
+    @property
+    def target(self) -> float:
+        return self._target
 
 
 def _key_cap(text: str) -> QLabel:
@@ -108,9 +140,9 @@ class HomePage(QWidget):
         # ---- stats ----------------------------------------------------------
         row = QHBoxLayout()
         row.setSpacing(12)
-        self.saved_stat = _Stat(strings.HOME_STAT_SAVED)
+        self.saved_stat = _Stat(strings.HOME_STAT_SAVED, strings.format_duration)
         self.words_stat = _Stat(strings.HOME_STAT_WORDS)
-        self.spoken_stat = _Stat(strings.HOME_STAT_SPOKEN)
+        self.spoken_stat = _Stat(strings.HOME_STAT_SPOKEN, strings.format_duration)
         for stat in (self.saved_stat, self.words_stat, self.spoken_stat):
             row.addWidget(stat, 1)
         column.addLayout(row)
@@ -168,20 +200,26 @@ class HomePage(QWidget):
 
     # ---- stats ----------------------------------------------------------------
 
-    def refresh(self) -> None:
+    def refresh(self, count_up: bool = False) -> None:
         try:
             stats = compute_stats(history.stats())
         except Exception:  # noqa: BLE001 -- decoration; keep the page alive
             logger.exception("Could not read history stats")
             return
-        self.saved_stat.value.setText(strings.format_duration(stats["saved_s"]))
-        self.words_stat.value.setText(str(stats["words"]))
-        self.spoken_stat.value.setText(strings.format_duration(stats["spoken_s"]))
+        self.saved_stat.set_value(stats["saved_s"], from_zero=count_up)
+        self.words_stat.set_value(stats["words"], from_zero=count_up)
+        self.spoken_stat.set_value(stats["spoken_s"], from_zero=count_up)
 
     def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
         super().showEvent(event)
-        self.refresh()
+        self.refresh(count_up=True)
         self._timer.start()
+
+    def finish_animations(self) -> None:
+        """Jump every counter to its final value (tests, screenshots)."""
+        for stat in (self.saved_stat, self.words_stat, self.spoken_stat):
+            stat._anim.stop()
+            stat._on_frame(stat.target)
 
     def hideEvent(self, event) -> None:  # noqa: N802 -- Qt override
         super().hideEvent(event)
