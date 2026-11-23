@@ -65,7 +65,7 @@ page):
     floating_pill_pos       [x, y] | None -- where the user dragged the pill
                                     (global screen coordinates of its
                                     centre); None = default, bottom centre
-    ui_font                 str   "amiri" | "system", default "amiri" -- the
+    ui_font                 str   "amiri" | "system", default "system" -- the
                                     interface typeface (Amiri is bundled in
                                     ui/assets/fonts/, SIL OFL)
     engine                  str   "pytorch" | "gguf", default "pytorch" --
@@ -127,7 +127,7 @@ class Settings:
     glass_effect: bool = True
     floating_pill_mode: str = "always"
     floating_pill_pos: Optional[list] = None
-    ui_font: str = "amiri"
+    ui_font: str = "system"  # Apple's own font fits the macOS look; Amiri stays one click away
     engine: str = "pytorch"
     gguf_model: str = ""
 

@@ -405,7 +405,7 @@ check(ctl.auto_check_due() is False, "not due again within a day")
 check(ctl.auto_check_due(now=datetime.now(timezone.utc) + timedelta(days=1, minutes=1)) is True, "due again after a day")
 
 # Floating pill + UI font options.
-check(settings._coerce({"ui_font": "x"}).ui_font == "amiri", "an unknown ui_font falls back to amiri")
+check(settings._coerce({"ui_font": "x"}).ui_font == "system", "an unknown ui_font falls back to the system font")
 check(settings._coerce({"floating_pill_mode": "x"}).floating_pill_mode == "always", "an unknown pill mode falls back to always")
 for bad_pos in ("x", [1], [1, 2, 3], [True, 2], ["a", "b"], [float("nan"), 1], {"x": 1, "y": 2}):
     check(settings._coerce({"floating_pill_pos": bad_pos}).floating_pill_pos is None, f"a bad floating_pill_pos {bad_pos!r} becomes None")
@@ -421,7 +421,7 @@ check(
     [page.ui_font_combo.itemData(i) for i in range(page.ui_font_combo.count())] == list(settings.VALID_UI_FONTS),
     "the UI font combo lists the fonts in VALID_UI_FONTS order",
 )
-check(page.ui_font_combo.currentData() == "amiri", "the UI font combo starts on the default font")
+check(page.ui_font_combo.currentData() == "system", "the UI font combo starts on the default font (system)")
 page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("system"))
 check(sm.current.ui_font == "system", "choosing the system font saves ui_font")
 check(json.loads(settings.settings_path().read_text())["ui_font"] == "system", "…to settings.json")

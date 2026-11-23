@@ -130,6 +130,7 @@ class HomePage(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         outer.addWidget(scroll)
+        self._scroll = scroll
         body = QWidget()
         body.setObjectName("scrollBody")
         scroll.setWidget(body)
@@ -212,6 +213,7 @@ class HomePage(QWidget):
 
     def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
         super().showEvent(event)
+        self._scroll.verticalScrollBar().setValue(0)  # always open at the top (the stats)
         self.refresh(count_up=True)
         self._timer.start()
 
