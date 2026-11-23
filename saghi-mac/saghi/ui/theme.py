@@ -342,4 +342,55 @@ QProgressBar::chunk {{
 QSplitter::handle {{
     background: transparent;
 }}
+/* macOS-style push buttons: the native bezel turns square once a button is
+   taller than 32 px (Arabic text lines are), so draw the rounded look here. */
+QPushButton {{
+    background: {"rgba(255, 255, 255, 30)" if t.dark else "#FFFFFF"};
+    border: 0.5px solid {"rgba(255, 255, 255, 22)" if t.dark else "rgba(0, 0, 0, 40)"};
+    border-bottom-color: {"rgba(255, 255, 255, 12)" if t.dark else "rgba(0, 0, 0, 60)"};
+    border-radius: 6px;
+    padding: 4px 14px;
+    min-height: 20px;
+    color: {t.text};
+    font-size: {fs(13)}px;
+}}
+QPushButton:hover {{
+    background: {"rgba(255, 255, 255, 40)" if t.dark else "#F7F7F9"};
+}}
+QPushButton:pressed {{
+    background: {"rgba(255, 255, 255, 18)" if t.dark else "#E5E5EA"};
+}}
+QPushButton:disabled {{
+    color: {t.text_secondary};
+    background: {"rgba(255, 255, 255, 14)" if t.dark else "#F2F2F4"};
+}}
+QPushButton:default, QPushButton#primaryButton {{
+    background: {t.accent};
+    border: none;
+    color: {t.accent_text};
+}}
+QPushButton#primaryButton:hover {{
+    background: {t.accent};
+}}
+QPushButton#dangerButton {{
+    color: {t.danger};
+}}
+QPushButton#linkButton {{
+    background: transparent;
+    border: none;
+    color: {t.accent};
+    padding: 2px 4px;
+}}
+QLineEdit {{
+    background: {"rgba(255, 255, 255, 16)" if t.dark else "#FFFFFF"};
+    border: 0.5px solid {"rgba(255, 255, 255, 26)" if t.dark else "rgba(0, 0, 0, 30)"};
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: {t.text};
+    selection-background-color: {t.accent};
+}}
+QLineEdit:focus {{
+    border: 2px solid {t.accent};
+    padding: 3px 7px;
+}}
 """
