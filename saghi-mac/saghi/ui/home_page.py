@@ -60,9 +60,9 @@ def gguf_available(gguf_model: str = "") -> bool:
 
 
 class _Stat(QFrame):
-    """A stat card whose number counts up to its value (ease-out, ~0.9 s)."""
+    """A stat card whose number counts up to its value (ease-out, ~1.8 s)."""
 
-    COUNT_MS = 900
+    COUNT_MS = 1800  # slow enough to watch the numbers climb
 
     def __init__(self, caption: str, fmt=lambda v: str(int(round(v)))) -> None:
         super().__init__()
@@ -80,7 +80,7 @@ class _Stat(QFrame):
         v.addWidget(self.value)
         v.addWidget(cap)
         self._anim = QVariantAnimation(self)
-        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutQuart)
         self._anim.valueChanged.connect(self._on_frame)
 
     def _on_frame(self, v) -> None:

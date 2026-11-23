@@ -56,8 +56,8 @@ ENGINE_READY_SUFFIX = "جاهز"
 
 
 def engine_ready_label(device: str) -> str:
-    """e.g. 'CPU جاهز' or 'MPS جاهز' -- device name isolated per the mixed-text rule."""
-    return f"{isolate_ltr((device or 'CPU').upper())} {ENGINE_READY_SUFFIX}"
+    """Just 'جاهز': the compute device (CPU / MPS / Metal) means nothing to the user."""
+    return ENGINE_READY_SUFFIX
 
 
 def format_engine_status(state: str, device: str) -> str:

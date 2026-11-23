@@ -385,9 +385,8 @@ check(
 )
 check(
     tray5._status_action.text() == strings.format_tray_engine_line("ready", "cpu"),
-    "tray status line updates to المحرك: CPU جاهز",
+    "tray status line updates to المحرك: جاهز",
 )
-check("CPU" in tray5._status_action.text(), "the isolated device name is still findable as a plain substring (LRI/PDI are invisible formatting chars)")
 
 print("Test 5 passed.\n")
 
