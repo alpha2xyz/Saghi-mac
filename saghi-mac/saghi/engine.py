@@ -26,6 +26,7 @@ second time would be a real memory risk. See `native_stack_available()`.
 
 from __future__ import annotations
 
+import gc
 import json
 import logging
 import os
@@ -65,7 +66,12 @@ class SaghiEngine:
     for two concurrent ~8GB inference passes.
     """
 
-    def __init__(self, model_dir: Union[str, Path], device: str = "auto"):
+    def __init__(
+        self,
+        model_dir: Union[str, Path],
+        device: str = "auto",
+        idle_unload_s: Optional[float] = 600.0,
+    ):
         self.model_dir = Path(model_dir)
         self._requested_device = device
         self.device: Optional[str] = None
@@ -74,6 +80,18 @@ class SaghiEngine:
         self._model = None
         self._lock = threading.RLock()
         self._load_time_s: Optional[float] = None
+        # Idle unload: free the model after this many idle seconds (None or
+        # <= 0 = never). SAGHI_IDLE_UNLOAD_S overrides it (used for testing).
+        env = os.environ.get("SAGHI_IDLE_UNLOAD_S")
+        if env:
+            try:
+                idle_unload_s = float(env)
+            except ValueError:
+                logger.warning("Ignoring invalid SAGHI_IDLE_UNLOAD_S=%r", env)
+        self._idle_unload_s = idle_unload_s if idle_unload_s and idle_unload_s > 0 else None
+        self._last_used = time.monotonic()
+        self._idle_timer: Optional[threading.Timer] = None
+        self._idle_timer_lock = threading.Lock()
 
     @property
     def load_time_s(self) -> Optional[float]:
@@ -144,6 +162,64 @@ class SaghiEngine:
             self._load_time_s = time.time() - t0
             logger.info("Engine loaded via %s path on %s in %.2fs", self.stack_path, self.device,
                         self._load_time_s)
+            self._touch()
+
+    # ---- idle unload -------------------------------------------------
+
+    def _touch(self) -> None:
+        """Record "used just now" and make sure the idle timer is armed."""
+        self._last_used = time.monotonic()
+        self._arm_idle_timer(self._idle_unload_s)
+
+    def _arm_idle_timer(self, delay: Optional[float]) -> None:
+        # One pending timer at most: it re-arms itself for the remaining
+        # idle time when it fires early, so frequent use creates no threads.
+        if self._idle_unload_s is None or delay is None:
+            return
+        with self._idle_timer_lock:
+            if self._idle_timer is not None:
+                return
+            timer = threading.Timer(max(delay, 0.01), self._idle_check)
+            timer.daemon = True
+            self._idle_timer = timer
+            timer.start()
+
+    def _idle_check(self) -> None:
+        with self._idle_timer_lock:
+            self._idle_timer = None
+        if self._model is None or self._idle_unload_s is None:
+            return  # nothing to free; load() re-arms
+        if not self._lock.acquire(blocking=False):
+            self._arm_idle_timer(self._idle_unload_s)  # busy: try again later
+            return
+        try:
+            remaining = self._idle_unload_s - (time.monotonic() - self._last_used)
+            if remaining > 0:
+                self._arm_idle_timer(remaining)
+            else:
+                self.unload()
+        finally:
+            self._lock.release()
+
+    def unload(self) -> None:
+        """Free the model and processor (the next transcribe() reloads lazily)."""
+        with self._lock:
+            if self._model is None:
+                return
+            idle = time.monotonic() - self._last_used
+            self._model = None
+            self._processor = None
+            gc.collect()
+            try:
+                import torch
+
+                if self.device == "mps" and hasattr(torch, "mps"):
+                    torch.mps.empty_cache()
+                elif self.device == "cuda" and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception as exc:  # freeing the cache is best effort
+                logger.warning("Could not empty the device cache (%s: %s)", type(exc).__name__, exc)
+            logger.info("Engine unloaded after %.0fs idle", idle)
 
     def _load_native(self) -> None:
         """
@@ -360,6 +436,7 @@ class SaghiEngine:
                     )
                     raw_text = texts[0]
             inference_s = time.time() - t0
+            self._touch()
 
 
         from .cleanup import clean_transcript
@@ -446,6 +523,7 @@ class SaghiEngine:
             with torch.no_grad():
                 raw_text = self._infer_array(arr, prepared_sr, language)
             inference_s = time.time() - t0
+            self._touch()
 
 
         from .cleanup import clean_transcript
