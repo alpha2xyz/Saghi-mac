@@ -2,6 +2,20 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-23 — notch UI redesign (owner's Mac, branch `claude/notch-ui`, from `claude/gguf-engine-v2` + `claude/idle-unload`)
+**Area:** `saghi/ui/notch.py` (new), `ui/dictation.py`, `hotkey.py`, `ui/sounds.py` + `ui/assets/sounds/`, `ui/mainwindow.py`, `ui/home_page.py` (new), `ui/settings_page.py`, `ui/app.py`, `history.py`.
+
+**Built (owner's request: Saghi lives in the notch, one key, a simple Apple-style window):**
+- Notch island replaces the floating pill: one black shape fused to the hardware notch (size read from NSScreen; 179x32 pt on the owner's MacBook Air), opens with a spring, shows level dots that scroll left (one slot per 0.2 s; silence stays flat, height = real mic level only), then a shimmering "processing" label; closes back into the notch. Click it to open the window. Macs without a notch: the island only appears while active.
+- Hotkey: tap (< 0.35 s) starts and the next press stops; or hold to talk; Esc discards (setting `tap_to_toggle`, default on).
+- Sounds: Saghi's own synthesized tones (`dev/make_sounds.py`): start, stop, discard, error.
+- Window: Home (time saved / words / time spoken, how to use, model choice «صاغي السريع» GGUF / «صاغي الكامل» PyTorch with restart), Configuration, History. No tray icon, no Dock icon; the app starts quietly (window only on first launch).
+- Rule change: the old pill's "nothing moves in silence" contract is replaced by "the dots scroll as a clock but never grow without sound" (test_indicator_render still covers the old pill class, which stays in the repo unused).
+
+**Verified live on the owner's Mac (branch run from source):** island pinned over the notch; tap -> Arabic sentence transcribed and pasted; Esc discarded (nothing pasted); clicking the notch opened the window; all three pages render. Tests: test_notch 35, test_tap_toggle 31, test_hotkey_logic 46, test_status_ui 161, test_gui_smoke 110, test_new_options 125, test_home_page 33 pass.
+
+**Not done / next:** owner reviews by using it; Dock-less window focus and the restart button not tried live; history page buttons still old-style; release needs the GGUF branch's bundling work (transcribe-cli + model asset). Running from source rewrote the login LaunchAgent's PYTHONPATH to the repo; restore it to the bundle's `Resources/app` (or reinstall) when the trial ends.
+
 ## 2026-11-18 (later) — GGUF one-week trial on the owner's Mac (branch `claude/gguf-engine-v2`)
 **Installed for the trial:** the branch's changed files copied into the installed v0.2.1 bundle (`Resources/app/saghi/`), `transcribe-cli` (transcribe.cpp `adfc502`) into `Resources/bin/`, settings `"engine": "gguf"` with `gguf_model` pointing at the local Q6_K file; bundle re-signed ad-hoc. Backup of the old code and settings in `~/.saghi-work/backup-before-gguf-trial/` (outside the repo). `_version.py` left at 0.2.1.
 
