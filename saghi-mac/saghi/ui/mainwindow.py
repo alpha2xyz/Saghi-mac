@@ -1,64 +1,66 @@
 """
-Main window, laid out like current macOS apps (Finder, System Settings):
-a full-height sidebar -- app name, the three pages (History, File
-transcription, Settings) with line icons, and the engine-status dot at the
-bottom -- next to the page content, each page under a large title.
+Main window: a small macOS-style utility window. A sidebar (on the visual
+right in RTL) with three pages (Home, Configuration, History), the engine
+status dot at its foot, and calm rounded cards for content. The file
+transcription page opens from Configuration as a separate small dialog.
 
-On macOS the title bar is merged into the window and the sidebar is real
-system glass (see macos_glass.py); anywhere else, or if that fails, the
-window keeps a normal title bar and a solid sidebar.
+There is no menu-bar icon and no Dock icon: the window is opened from the
+notch island or by launching Saghi again, and closing it only hides it.
 
 RTL note: the app sets `QApplication.setLayoutDirection(RightToLeft)` once,
-globally, in ui/app.py. Qt then automatically mirrors every QHBoxLayout it
-lays out from that point on -- this file builds the body in plain
-"sidebar first, then content" order and Qt places the sidebar on the
-visual right, exactly as README_AR.md's Arabic-first UI describes, with no
-manual left/right juggling needed here.
+globally, in ui/app.py. Qt then mirrors every QHBoxLayout, so the body is
+built in plain "sidebar first, then content" order.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import __version__
-from . import macos_glass, strings, theme, widgets
+from . import strings, theme, widgets
 from .engine_status import EngineStatusBridge
 from .filejob_page import FileJobPage
 from .history_page import HistoryPage
+from .home_page import HomePage
 from .settings_page import SettingsPage
+from .sidebar import SidebarNav
 
-_SIDEBAR_WIDTH = 220
+_SIDEBAR_WIDTH = 168
 
 
 class _PageFrame(QWidget):
     """A page under its large title + subtitle."""
 
-    def __init__(self, title: str, subtitle: str, page: QWidget, top_inset: int) -> None:
+    def __init__(self, title: str, subtitle: str, page: QWidget) -> None:
         super().__init__()
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
-        v.addWidget(widgets.DragArea(top_inset))
         head = QWidget()
         hv = QVBoxLayout(head)
-        hv.setContentsMargins(28, 4, 28, 12)
+        hv.setContentsMargins(24, 14, 24, 8)
         hv.setSpacing(2)
-        hv.addWidget(widgets.label(title, "pageTitle"))
-        if subtitle:
-            hv.addWidget(widgets.label(subtitle, "pageSubtitle"))
+        self.title = widgets.label(title, "pageTitle")
+        self.subtitle = widgets.label(subtitle, "pageSubtitle")
+        hv.addWidget(self.title)
+        hv.addWidget(self.subtitle)
+        self.subtitle.setVisible(bool(subtitle))
         v.addWidget(head)
         v.addWidget(page, 1)
+
+    def set_titles(self, title: str, subtitle: str) -> None:
+        self.title.setText(title)
+        self.subtitle.setText(subtitle)
+        self.subtitle.setVisible(bool(subtitle))
 
 
 class MainWindow(QMainWindow):
@@ -68,7 +70,7 @@ class MainWindow(QMainWindow):
         # old colours.
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ApplicationPaletteChange):
             # (Can fire while __init__ is still building the widgets.)
-            if hasattr(self, "_nav_icons") and not getattr(self, "_restyling", False):
+            if hasattr(self, "nav") and not getattr(self, "_restyling", False):
                 self._restyling = True
                 try:
                     self._apply_theme()
@@ -76,19 +78,15 @@ class MainWindow(QMainWindow):
                     self._restyling = False
         super().changeEvent(event)
 
+    # Asked of the app (ui/app.py), which owns the process lifecycle.
+    quit_requested = Signal()
+    restart_requested = Signal()
+
     def __init__(self, settings_manager, engine, engine_status: EngineStatusBridge, parent=None):
         super().__init__(parent)
         self.setWindowTitle(strings.APP_TITLE)
-        self.resize(1080, 720)
-        self.setMinimumSize(860, 560)
-
-        # Decided before the native window exists (see macos_glass.py).
-        self._wants_glass = macos_glass.wants_glass(settings_manager.current.glass_effect)
-        if self._wants_glass:
-            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self._glass = False
-        self._titlebar_merged = macos_glass.platform_ok()
-        top_inset = macos_glass.TITLEBAR_INSET + 8 if self._titlebar_merged else 16
+        self.resize(680, 560)
+        self.setMinimumSize(600, 480)
 
         central = QWidget()
         body_layout = QHBoxLayout(central)
@@ -101,37 +99,44 @@ class MainWindow(QMainWindow):
         self.sidebar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.sidebar.setFixedWidth(_SIDEBAR_WIDTH)
         side = QVBoxLayout(self.sidebar)
-        side.setContentsMargins(0, 0, 0, 14)
+        side.setContentsMargins(0, 16, 0, 12)
         side.setSpacing(0)
-        side.addWidget(widgets.DragArea(top_inset))
 
         brand = QWidget()
         bh = QHBoxLayout(brand)
-        bh.setContentsMargins(20, 0, 20, 14)
-        bh.setSpacing(10)
+        bh.setContentsMargins(16, 0, 16, 12)
+        bh.setSpacing(8)
         self._logo = QLabel()
         from .tray import _ICON_PATH
 
         logo_px = QPixmap(str(_ICON_PATH))
         if not logo_px.isNull():
             logo_px.setDevicePixelRatio(2.0)
-            self._logo.setPixmap(logo_px.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self._logo.setPixmap(logo_px.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         bh.addWidget(self._logo)
         bh.addWidget(widgets.label(strings.APP_TITLE, "appName"))
         bh.addStretch()
         side.addWidget(brand)
 
-        self.nav = QListWidget()
-        self.nav.setObjectName("nav")
-        self.nav.setIconSize(QSize(18, 18))
-        self.nav.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.nav.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav = SidebarNav()
         side.addWidget(self.nav, 1)
+
+        local_row = QWidget()
+        lh = QHBoxLayout(local_row)
+        lh.setContentsMargins(18, 6, 18, 2)
+        lh.setSpacing(8)
+        self.local_dot = widgets.StatusDot()
+        self.local_dot.set_state("local")
+        lh.addWidget(self.local_dot)
+        self.local_chip = QLabel(strings.LOCAL_CHIP)
+        self.local_chip.setObjectName("statusChip")
+        lh.addWidget(self.local_chip)
+        lh.addStretch()
+        side.addWidget(local_row)
 
         status_row = QWidget()
         sh = QHBoxLayout(status_row)
-        sh.setContentsMargins(22, 6, 22, 2)
+        sh.setContentsMargins(18, 2, 18, 2)
         sh.setSpacing(8)
         self.status_dot = widgets.StatusDot()
         self.status_dot.set_state(engine_status.state)
@@ -143,7 +148,7 @@ class MainWindow(QMainWindow):
         side.addWidget(status_row)
 
         version = widgets.label(strings.version_label(__version__), "versionLabel")
-        version.setContentsMargins(22, 2, 22, 0)
+        version.setContentsMargins(18, 2, 18, 0)
         side.addWidget(version)
 
         # ---- pages -------------------------------------------------------------
@@ -154,25 +159,38 @@ class MainWindow(QMainWindow):
         cv.setContentsMargins(0, 0, 0, 0)
         cv.setSpacing(0)
 
-        self.pages = QStackedWidget()
+        self.pages = widgets.FadeStack()
         cv.addWidget(self.pages)
 
+        self.home_page = HomePage(settings_manager)
         self.history_page = HistoryPage()
         self.filejob_page = FileJobPage(engine, engine_status, settings_manager=settings_manager)
         self.settings_page = SettingsPage(settings_manager)
         self.settings_page.history_cleared.connect(self.history_page.refresh)
+        self.settings_page.quit_requested.connect(self.quit_requested.emit)
+        self.settings_page.filejob_requested.connect(self.show_filejob)
+        self.home_page.restart_requested.connect(self.restart_requested.emit)
 
-        self._nav_icons = ("history", "filejob", "settings")
-        for label, subtitle, widget in (
-            (strings.NAV_HISTORY, strings.PAGE_HISTORY_SUBTITLE, self.history_page),
-            (strings.NAV_FILEJOB, strings.PAGE_FILEJOB_SUBTITLE, self.filejob_page),
-            (strings.NAV_SETTINGS, strings.PAGE_SETTINGS_SUBTITLE, self.settings_page),
+        # File transcription lives in its own small dialog, opened from Configuration.
+        self.filejob_dialog = QDialog(self)
+        self.filejob_dialog.setWindowTitle(strings.FILEJOB_WINDOW_TITLE)
+        self.filejob_dialog.resize(560, 520)
+        fv = QVBoxLayout(self.filejob_dialog)
+        fv.setContentsMargins(0, 8, 0, 0)
+        fv.addWidget(self.filejob_page)
+
+        self._settings_frame = _PageFrame(strings.SETTINGS_SECTION_DICTATION, strings.SETTINGS_SUBTITLE_DICTATION, self.settings_page)
+        self._page_index = {}
+        for key, frame in (
+            ("home", _PageFrame(strings.NAV_HOME, strings.PAGE_HOME_SUBTITLE, self.home_page)),
+            ("settings", self._settings_frame),
+            ("history", _PageFrame(strings.NAV_HISTORY, strings.PAGE_HISTORY_SUBTITLE, self.history_page)),
         ):
-            QListWidgetItem(label, self.nav)
-            self.pages.addWidget(_PageFrame(label, subtitle, widget, top_inset))
+            self._page_index[key] = self.pages.count()
+            self.pages.addWidget(frame)
 
-        self.nav.currentRowChanged.connect(self._on_nav_changed)
-        self.nav.setCurrentRow(0)
+        self.nav.navigated.connect(self.navigate)
+        self.nav.select("home", emit=False)
 
         body_layout.addWidget(self.sidebar)
         body_layout.addWidget(content, 1)
@@ -181,17 +199,10 @@ class MainWindow(QMainWindow):
         self._apply_theme()
         engine_status.status_changed.connect(self._on_engine_status_changed)
 
-    # ---- native chrome -------------------------------------------------------
-
-    def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
-        super().showEvent(event)
-        if not getattr(self, "_chrome_done", False):
-            self._chrome_done = True
-            if self._titlebar_merged:
-                macos_glass.merge_titlebar(self)
-            if self._wants_glass:
-                self._glass = macos_glass.install_glass(self)
-                self._apply_theme()
+    def show_filejob(self) -> None:
+        self.filejob_dialog.show()
+        self.filejob_dialog.raise_()
+        self.filejob_dialog.activateWindow()
 
     def restyle(self) -> None:
         """Re-apply the stylesheet after a theme input changed (e.g. the interface font)."""
@@ -201,29 +212,40 @@ class MainWindow(QMainWindow):
 
     def _apply_theme(self) -> None:
         self.setStyleSheet("")
-        self.setStyleSheet(theme.stylesheet(glass=self._glass))
-        for row, name in enumerate(self._nav_icons):
-            item = self.nav.item(row)
-            if item is not None:
-                item.setIcon(widgets.icon(name))
+        self.setStyleSheet(theme.stylesheet())
+        self.nav.restyle()
 
     # ---- navigation / status -----------------------------------------------
 
-    def _on_nav_changed(self, row: int) -> None:
-        self.pages.setCurrentIndex(row)
-        if row == 0:
+    _SECTION_TITLES = {
+        "dictation": (strings.SETTINGS_SECTION_DICTATION, strings.SETTINGS_SUBTITLE_DICTATION),
+        "text": (strings.SETTINGS_SECTION_TEXT, strings.SETTINGS_SUBTITLE_TEXT),
+        "app": (strings.SETTINGS_SECTION_APP, strings.SETTINGS_SUBTITLE_APP),
+    }
+
+    def navigate(self, key: str) -> None:
+        """Show a page: "home", "history" or "settings.<dictation|text|app>"."""
+        if self.nav.current != key:
+            self.nav.select(key, emit=False)
+        top, _, section = key.partition(".")
+        if top == "settings":
+            section = section or "dictation"
+            self._settings_frame.set_titles(*self._SECTION_TITLES[section])
+            self.settings_page.show_section(section)
+            if section == "app":
+                self.settings_page.refresh_history_count()
+        self.pages.setCurrentIndex(self._page_index[top])
+        if top == "home":
+            self.home_page.refresh(count_up=True)
+        elif top == "history":
             self.history_page.refresh()
-        elif row == 2:
-            self.settings_page.refresh_history_count()
 
     def _on_engine_status_changed(self, state: str, device: str, stack_path: str) -> None:
         self.status_chip.setText(strings.format_engine_status(state, device))
         self.status_dot.set_state(state)
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- Qt override naming
-        # Tray app: closing the window just hides it. The process, tray
-        # icon, and API server thread all keep running in the background
-        # -- see ui/app.py / ui/tray.py -- matching README_AR.md's
-        # documented tray behavior ("أيقونة دائمة بجانب الساعة").
+        # Closing the window just hides it: dictation, the notch island and
+        # the API server keep running (see ui/app.py).
         event.ignore()
         self.hide()

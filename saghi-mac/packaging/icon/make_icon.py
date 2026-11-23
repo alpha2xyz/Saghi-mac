@@ -2,10 +2,11 @@
 # Bold, system blue (#0A84FF), on a soft light-glass squircle whose colours are the
 # app's design palette (periwinkle #a9c1ff, pink #ffc3ce, sky #9fd4ff).
 #
-# Font: Amiri Bold (SIL Open Font License 1.1), already shipped with the app in
-# saghi/ui/assets/fonts/. Run from this folder with the app's Python (PySide6):
+# Font: Amiri Bold (SIL Open Font License 1.1). The app itself no longer ships it;
+# download Amiri-Bold.ttf (https://github.com/aliftype/amiri/releases) and pass its
+# path in SAGHI_ICON_FONT. Run from this folder with the app's Python (PySide6):
 #
-#     QT_QPA_PLATFORM=offscreen python3 make_icon.py
+#     SAGHI_ICON_FONT=/path/to/Amiri-Bold.ttf QT_QPA_PLATFORM=offscreen python3 make_icon.py
 #
 # Writes saghi-icon-1024.png here, ../AppIcon.icns (every size, no extra tools) and
 # ../../saghi/ui/assets/saghi.png (512 px, the in-app / Dock icon).
@@ -19,7 +20,7 @@ from PySide6.QtGui import (QBrush, QColor, QFont, QFontDatabase, QGuiApplication
                            QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient)
 
 HERE = Path(__file__).resolve().parent
-FONT_FILE = HERE.parent.parent / "saghi" / "ui" / "assets" / "fonts" / "Amiri-Bold.ttf"
+FONT_FILE = Path(os.environ.get("SAGHI_ICON_FONT", "Amiri-Bold.ttf")).expanduser()
 S = 1024
 BODY = QRectF(100, 100, 824, 824)  # Apple's macOS icon grid: 824 pt body on a 1024 canvas
 NAME = "صاغي"

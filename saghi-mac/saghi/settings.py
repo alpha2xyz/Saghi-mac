@@ -11,7 +11,7 @@ same settings file without pulling in PySide6.
 Fields (per README_AR.md's «الإعدادات»
 page):
 
-    hotkey          str   default "ctrl+cmd" -- global press-and-hold hotkey
+    hotkey          str   default "ctrl+cmd" -- global hotkey, 1-2 keys (see hotkey_spec.py)
     microphone      str|None  device name, None = system default
     cleanup_level   str   "none" | "light" | "medium", default "light"
     autopaste       bool  default True
@@ -37,6 +37,11 @@ page):
 
     Later additions:
 
+    tap_to_toggle           bool  default True -- a quick tap of the hotkey
+                                    (under 0.35 s) keeps recording until the
+                                    next tap; holding still works as
+                                    press-and-hold. Off = hold-only
+
     sound_feedback          bool  default True -- short system sound when a
                                     dictation starts, finishes, or fails
     history_retention_days  int   0 | 7 | 30 | 90, default 0 (keep forever);
@@ -60,9 +65,13 @@ page):
     floating_pill_pos       [x, y] | None -- where the user dragged the pill
                                     (global screen coordinates of its
                                     centre); None = default, bottom centre
-    ui_font                 str   "amiri" | "system", default "amiri" -- the
-                                    interface typeface (Amiri is bundled in
-                                    ui/assets/fonts/, SIL OFL)
+    engine                  str   "pytorch" | "gguf", default "pytorch" --
+                                    the speech engine (engines.py). "gguf"
+                                    runs the same model quantized on
+                                    transcribe.cpp (gguf_engine.py); applies
+                                    at the next launch. SAGHI_ENGINE overrides.
+    gguf_model              str   default "" -- path to the .gguf file; ""
+                                    = SAGHI_GGUF_MODEL or the bundled one
 """
 
 from __future__ import annotations
@@ -75,6 +84,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import paths
+from .hotkey_spec import normalize_hotkey
 
 logger = logging.getLogger("saghi.settings")
 
@@ -83,12 +93,12 @@ _FILENAME = "settings.json"
 VALID_CLEANUP_LEVELS = ("none", "light", "medium")
 VALID_WAVEFORM_STYLES = ("bars", "line", "dots", "pulse")
 VALID_LANGUAGES = ("ar", "en")
-# Mirrors hotkey.COMBOS' keys (duplicated so this module keeps zero
-# pynput dependency, see hotkey.py's COMBOS comment).
+# The original two-modifier presets, kept as known-good examples. Any valid
+# 1-2 key shortcut is accepted (hotkey_spec.parse_hotkey), not only these.
 VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
 VALID_RETENTION_DAYS = (0, 7, 30, 90)
 VALID_PILL_MODES = ("always", "active")
-VALID_UI_FONTS = ("amiri", "system")
+VALID_ENGINES = ("pytorch", "gguf")
 
 
 @dataclass
@@ -106,13 +116,15 @@ class Settings:
     openrouter_model: str = ""
     openrouter_instructions: str = ""
     sound_feedback: bool = True
+    tap_to_toggle: bool = True
     history_retention_days: int = 0
     auto_check_updates: bool = False
     last_update_check: str = ""
     glass_effect: bool = True
     floating_pill_mode: str = "always"
     floating_pill_pos: Optional[list] = None
-    ui_font: str = "amiri"
+    engine: str = "pytorch"
+    gguf_model: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -140,8 +152,7 @@ def _coerce(data: dict) -> Settings:
         s.waveform_style = defaults.waveform_style
     if s.language not in VALID_LANGUAGES:
         s.language = defaults.language
-    if s.hotkey not in VALID_HOTKEYS:
-        s.hotkey = defaults.hotkey
+    s.hotkey = normalize_hotkey(s.hotkey, defaults.hotkey)
     if s.microphone is not None and not isinstance(s.microphone, str):
         s.microphone = defaults.microphone
     if s.waveform_color is not None and not isinstance(s.waveform_color, str):
@@ -153,8 +164,10 @@ def _coerce(data: dict) -> Settings:
     if s.floating_pill_mode not in VALID_PILL_MODES:
         s.floating_pill_mode = defaults.floating_pill_mode
     s.floating_pill_pos = _coerce_point(s.floating_pill_pos)
-    if s.ui_font not in VALID_UI_FONTS:
-        s.ui_font = defaults.ui_font
+    if s.engine not in VALID_ENGINES:
+        s.engine = defaults.engine
+    if not isinstance(s.gguf_model, str):
+        s.gguf_model = defaults.gguf_model
     if not isinstance(s.last_update_check, str):
         s.last_update_check = defaults.last_update_check
     retention = s.history_retention_days
@@ -168,6 +181,7 @@ def _coerce(data: dict) -> Settings:
         "launch_at_login",
         "openrouter_enabled",
         "sound_feedback",
+        "tap_to_toggle",
         "auto_check_updates",
         "glass_effect",
     ):

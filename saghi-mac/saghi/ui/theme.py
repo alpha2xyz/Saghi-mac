@@ -18,78 +18,14 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
 
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QPalette
+from PySide6.QtGui import QColor, QGuiApplication, QPalette
 
 logger = logging.getLogger("saghi.ui.theme")
 
-# ---- interface typeface (settings.ui_font) ------------------------------------
-#
-# Amiri (SIL OFL, ui/assets/fonts/) is the default interface font. It is a
-# book face with a small x-height and tall ascenders, so every size in the
-# stylesheet grows by _AMIRI_BOOST px while it is active (see fs()).
-
-_FONT_DIR = Path(__file__).parent / "assets" / "fonts"
-_AMIRI_BOOST = 2
-_AMIRI_PIXEL_SIZE = 15
-_amiri_family: Optional[str] = None
-_system_font: Optional[QFont] = None
-_ui_font = "system"
-_NATIVE_FIXED_HEIGHT = ("QPushButton", "QComboBox", "QLineEdit")
-
-
-def load_bundled_fonts() -> Optional[str]:
-    """Register the bundled Amiri files once; returns its family name (None if loading failed)."""
-    global _amiri_family
-    if _amiri_family is None:
-        for name in ("Amiri-Regular.ttf", "Amiri-Bold.ttf"):
-            fid = QFontDatabase.addApplicationFont(str(_FONT_DIR / name))
-            families = QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
-            if families:
-                _amiri_family = families[0]
-            else:
-                logger.warning("Could not load bundled font %s", name)
-    return _amiri_family
-
-
-def apply_ui_font(app, choice: str) -> str:
-    """Make `choice` ("amiri" | "system") the application font. Returns the choice actually applied."""
-    global _system_font, _ui_font
-    if _system_font is None:
-        _system_font = QFont(app.font())
-    family = load_bundled_fonts() if choice == "amiri" else None
-    if family:
-        font = QFont(family)
-        # Pixel size, not points: macOS maps 1pt to 1 logical px, other
-        # platforms (96 dpi) would make points a third larger than the
-        # stylesheet's px sizes.
-        font.setPixelSize(_AMIRI_PIXEL_SIZE)
-        app.setFont(font)
-        if sys.platform == "darwin":
-            # macOS draws push buttons, pop-ups and text fields at fixed
-            # native heights (qmacstyle: 32 / 26 / 21 px) sized for the
-            # system font's line; Amiri's much taller line (27 px at 15 px)
-            # clips inside them and turns push buttons into square bezels.
-            # Those native controls keep the system font; everything else
-            # is Amiri.
-            for cls in _NATIVE_FIXED_HEIGHT:
-                app.setFont(_system_font, cls)
-        _ui_font = "amiri"
-    else:
-        app.setFont(_system_font)
-        _ui_font = "system"
-    return _ui_font
-
-
-def ui_font() -> str:
-    return _ui_font
-
-
 def fs(px: int) -> int:
-    """A stylesheet/painting font size, enlarged for Amiri."""
-    return px + _AMIRI_BOOST if _ui_font == "amiri" else px
+    """A stylesheet/painting font size in px (the system font, no scaling)."""
+    return px
 
 # Saghi's own colours (from packaging/icon/make_icon.py) -- used for the
 # logo-adjacent accents only, never for controls.
@@ -101,7 +37,8 @@ BRAND_MELON = "#FC6C85"
 STATUS_COLORS = {
     "ready": "#34C759",
     "loading": "#FF9F0A",
-    "cold": "#8E8E93",
+    "cold": "#34C759",  # loads on first use: shown as ready
+    "local": "#0A84FF",
 }
 
 # Preset colours offered for the recording indicator (Settings page); the
@@ -253,7 +190,21 @@ QListWidget#nav::item:selected {{
 #card {{
     background: {t.card};
     border: 1px solid {t.card_border};
-    border-radius: 12px;
+    border-radius: 16px;
+}}
+#statValue {{
+    font-size: {fs(24)}px;
+    font-weight: 700;
+    color: {t.text};
+}}
+#keyCap {{
+    background: {t.hover};
+    border: 1px solid {t.card_border};
+    border-radius: 7px;
+    padding: 3px 10px;
+    font-size: {fs(14)}px;
+    font-weight: 600;
+    color: {t.text};
 }}
 #separator {{
     background: {t.separator};
@@ -327,5 +278,56 @@ QProgressBar::chunk {{
 }}
 QSplitter::handle {{
     background: transparent;
+}}
+/* macOS-style push buttons: the native bezel turns square once a button is
+   taller than 32 px (Arabic text lines are), so draw the rounded look here. */
+QPushButton {{
+    background: {"rgba(255, 255, 255, 30)" if t.dark else "#FFFFFF"};
+    border: 0.5px solid {"rgba(255, 255, 255, 22)" if t.dark else "rgba(0, 0, 0, 40)"};
+    border-bottom-color: {"rgba(255, 255, 255, 12)" if t.dark else "rgba(0, 0, 0, 60)"};
+    border-radius: 6px;
+    padding: 4px 14px;
+    min-height: 20px;
+    color: {t.text};
+    font-size: {fs(13)}px;
+}}
+QPushButton:hover {{
+    background: {"rgba(255, 255, 255, 40)" if t.dark else "#F7F7F9"};
+}}
+QPushButton:pressed {{
+    background: {"rgba(255, 255, 255, 18)" if t.dark else "#E5E5EA"};
+}}
+QPushButton:disabled {{
+    color: {t.text_secondary};
+    background: {"rgba(255, 255, 255, 14)" if t.dark else "#F2F2F4"};
+}}
+QPushButton:default, QPushButton#primaryButton {{
+    background: {t.accent};
+    border: none;
+    color: {t.accent_text};
+}}
+QPushButton#primaryButton:hover {{
+    background: {t.accent};
+}}
+QPushButton#dangerButton {{
+    color: {t.danger};
+}}
+QPushButton#linkButton {{
+    background: transparent;
+    border: none;
+    color: {t.accent};
+    padding: 2px 4px;
+}}
+QLineEdit {{
+    background: {"rgba(255, 255, 255, 16)" if t.dark else "#FFFFFF"};
+    border: 0.5px solid {"rgba(255, 255, 255, 26)" if t.dark else "rgba(0, 0, 0, 30)"};
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: {t.text};
+    selection-background-color: {t.accent};
+}}
+QLineEdit:focus {{
+    border: 2px solid {t.accent};
+    padding: 3px 7px;
 }}
 """

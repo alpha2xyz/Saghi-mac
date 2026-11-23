@@ -70,6 +70,10 @@ class EngineStatusBridge(QObject):
         if self._engine.is_loaded and self._state != STATE_READY:
             self._state = STATE_READY
             self._emit()
+        elif not self._engine.is_loaded and self._state == STATE_READY:
+            # The engine freed the model after sitting idle.
+            self._state = STATE_COLD
+            self._emit()
 
     def _emit(self) -> None:
         self.status_changed.emit(self._state, self.device, self.stack_path)

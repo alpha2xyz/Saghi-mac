@@ -261,7 +261,7 @@ class _SilentRecorder:
 
 
 engine = SaghiEngine(Path(os.environ.get("SAGHI_DATA_DIR")) / "no-model")  # never loaded here
-sm.update(sound_feedback=False, autopaste=False)
+sm.update(sound_feedback=False, autopaste=False, tap_to_toggle=False)  # instant press/release = a hold here
 controller = DictationController(engine, EngineStatusBridge(engine), sm)
 
 controller.recorder = _SilentRecorder("Studio Mic")

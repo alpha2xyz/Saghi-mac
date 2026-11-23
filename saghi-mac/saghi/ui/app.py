@@ -3,12 +3,14 @@ Saghi GUI entry point (`python -m saghi.ui.app`).
 
 Owns the whole desktop-app process: builds the Qt application (RTL layout
 direction, per README_AR.md's Arabic-first UI), one shared SaghiEngine
-instance, the main window, the tray icon, and the local API server -- all
-in one process (the model runs on a background thread so the UI stays
-responsive). Closing the
-main window just hides it (see MainWindow.closeEvent); the process, tray
-icon, and API server all keep running until "إنهاء" (quit) is chosen from
-the tray menu.
+instance, the main window, and the local API server -- all in one process
+(the model runs on a background thread so the UI stays responsive).
+
+There is no menu-bar icon and no Dock icon: Saghi lives in the notch island.
+The main window stays hidden at start-up (except on the very first launch)
+and opens when the island is clicked or Saghi is launched again; closing it
+only hides it (MainWindow.closeEvent). The process runs until
+"إنهاء صاغي" (quit) is pressed in Configuration.
 
 The engine is deliberately NOT loaded here -- SaghiEngine's constructor is
 cheap (no torch/transformers import happens until .load()/.transcribe() is
@@ -42,12 +44,10 @@ from PySide6.QtWidgets import QApplication
 
 from .. import history, login_item, paths
 from ..engine import SaghiEngine
-from ..settings import SettingsManager
+from ..settings import SettingsManager, settings_path
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
-from . import theme
 from .mainwindow import MainWindow
-from .tray import SaghiTray
 from .update_dialog import UpdateController
 
 logger = logging.getLogger("saghi.ui.app")
@@ -119,10 +119,11 @@ class AppContext:
     engine_status: EngineStatusBridge
     settings_manager: SettingsManager
     main_window: MainWindow
-    tray: SaghiTray
     api_thread: ApiServerThread
     dictation: DictationController
     quit_fn: Callable[[], None]
+    show_main_window: Callable[[], None]
+    tray: None = None  # no menu-bar icon any more; kept for older callers
     updates: Optional[UpdateController] = None
 
     def quit(self) -> None:
@@ -135,7 +136,8 @@ def build(argv: Optional[list] = None) -> AppContext:
 
     app = QApplication.instance() or QApplication(list(argv) if argv is not None else sys.argv)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-    app.setQuitOnLastWindowClosed(False)  # tray app: closing the window must not end the process
+    app.setQuitOnLastWindowClosed(False)  # closing the window must not end the process
+    _hide_dock_icon()
     # Dock / app-switcher icon while running (the process is python3.12, so
     # macOS would otherwise show a generic icon instead of the Saghi icon).
     from PySide6.QtGui import QIcon
@@ -144,30 +146,21 @@ def build(argv: Optional[list] = None) -> AppContext:
 
     app.setWindowIcon(QIcon(str(_ICON_PATH)))
 
+    # Checked before SettingsManager can write anything: the very first
+    # launch shows the window once so the user sees how Saghi works.
+    first_launch = not settings_path().exists()
     settings_manager = SettingsManager()
     _apply_startup_settings(settings_manager)
-    # Interface typeface (Amiri by default, bundled) -- before any widget exists.
-    theme.apply_ui_font(app, settings_manager.current.ui_font)
 
-    engine = SaghiEngine(DEFAULT_MODEL_DIR)
+    from ..engines import make_engine
+
+    engine = make_engine(DEFAULT_MODEL_DIR)  # SAGHI_ENGINE, else the "engine" setting
     engine_status = EngineStatusBridge(engine)
 
     api_thread = ApiServerThread(engine, DEFAULT_MODEL_DIR, port=API_PORT)
     api_thread.start()
 
     main_window = MainWindow(settings_manager, engine, engine_status)
-
-    # Compared with the last REQUESTED font, not theme.ui_font(): if Amiri
-    # failed to load, theme falls back to "system" and the two would differ
-    # forever, re-running the switch on every unrelated settings change.
-    requested_font = [settings_manager.current.ui_font]
-
-    def _on_font_setting(settings) -> None:
-        if settings.ui_font != requested_font[0]:
-            requested_font[0] = settings.ui_font
-            theme.apply_ui_font(app, settings.ui_font)
-            main_window.restyle()
-            updates.restyle()  # an open update dialog is a separate top-level window
 
     # Phase 5: live dictation. Started with the app (global hotkey listener
     # begins immediately, default enabled) -- see dictation.py's module
@@ -190,25 +183,44 @@ def build(argv: Optional[list] = None) -> AppContext:
         api_thread.stop()
         app.quit()
 
-    tray = SaghiTray(
-        main_window,
-        engine_status,
-        on_quit=_quit,
-        dictation_controller=dictation,
-        settings_manager=settings_manager,
+    def _show_main_window() -> None:
+        main_window.show()
+        main_window.raise_()
+        main_window.activateWindow()
+        _activate_app()
+
+    def _restart() -> None:
+        """Quit, then start Saghi again once this process has exited."""
+        from .. import updater
+
+        logger.info("Restarting Saghi")
+        try:
+            if paths.app_resources_dir() is not None:
+                updater.relaunch_after_exit()
+            else:  # running from a source checkout
+                updater._spawn_after_exit([sys.executable, "-m", "saghi.ui.app"])
+        except Exception:  # noqa: BLE001 -- still quit; the user can reopen by hand
+            logger.exception("Could not schedule the relaunch")
+        _quit()
+
+    dictation.open_app_requested.connect(_show_main_window)
+    main_window.quit_requested.connect(_quit)
+    main_window.restart_requested.connect(_restart)
+    # While the settings page records a new shortcut the global hotkey is paused.
+    main_window.settings_page.hotkey_capture_changed.connect(
+        lambda on: dictation.suspend_hotkey() if on else dictation.resume_hotkey()
     )
-    tray.show()
-    dictation.open_app_requested.connect(tray.show_main_window)
 
     # In-app updates from GitHub releases (see saghi/updater.py). Checking
     # only happens when asked, or once a day if the user turned that on.
     updates = UpdateController(settings_manager, quit_app=_quit)
-    settings_manager.on_change(_on_font_setting)  # registered once everything it restyles exists
     main_window.settings_page.check_updates_requested.connect(updates.open_dialog)
-    tray.connect_updates(updates)
+    # An automatic check that found a newer release opens the update dialog.
+    updates.update_found.connect(lambda _result: updates.open_dialog())
     updates.start()
 
-    main_window.show()
+    if first_launch:
+        _show_main_window()
 
     return AppContext(
         app=app,
@@ -216,12 +228,36 @@ def build(argv: Optional[list] = None) -> AppContext:
         engine_status=engine_status,
         settings_manager=settings_manager,
         main_window=main_window,
-        tray=tray,
+        show_main_window=_show_main_window,
         api_thread=api_thread,
         dictation=dictation,
         quit_fn=_quit,
         updates=updates,
     )
+
+
+def _hide_dock_icon() -> None:
+    """macOS: no Dock icon / app-switcher entry (NSApplication Accessory policy). No-op elsewhere and in offscreen tests."""
+    if sys.platform != "darwin" or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        return
+    try:
+        from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+
+        NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not hide the Dock icon", exc_info=True)
+
+
+def _activate_app() -> None:
+    """Bring Saghi to the front: an Accessory-policy app is not activated by Qt's raise alone."""
+    if sys.platform != "darwin" or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        return
+    try:
+        from AppKit import NSApplication
+
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not activate the app", exc_info=True)
 
 
 def _apply_startup_settings(settings_manager: SettingsManager) -> None:
@@ -260,7 +296,7 @@ def main(argv: Optional[list] = None) -> int:
         logger.info("Saghi is already running -- showed its window, exiting this copy")
         return 0
     ctx = build(argv)
-    instance_server = single_instance.listen(ctx.tray.show_main_window)  # noqa: F841 (kept alive)
+    instance_server = single_instance.listen(ctx.show_main_window)  # noqa: F841 (kept alive)
     # Heartbeat from the UI thread; a stall >5s logs every thread's stack
     # to saghi.log (see diagnostics.py) -- the evidence a freeze needs.
     watchdog = diagnostics.FreezeWatchdog()

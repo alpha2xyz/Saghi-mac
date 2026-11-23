@@ -50,14 +50,14 @@ TRAY_ENGINE_PREFIX = "المحرك: "
 
 # ---- engine status (shared by the tray menu line and the header chip) ---
 
-ENGINE_COLD = "بارد"
-ENGINE_LOADING = "جارٍ التحميل"
-ENGINE_READY_SUFFIX = "جاهز"
+ENGINE_COLD = "جاهز للإملاء"  # the model loads on the first dictation; nothing to wait for
+ENGINE_LOADING = "يجهّز نموذج الكلام…"
+ENGINE_READY_SUFFIX = "جاهز للإملاء"
 
 
 def engine_ready_label(device: str) -> str:
-    """e.g. 'CPU جاهز' or 'MPS جاهز' -- device name isolated per the mixed-text rule."""
-    return f"{isolate_ltr((device or 'CPU').upper())} {ENGINE_READY_SUFFIX}"
+    """Just 'جاهز': the compute device (CPU / MPS / Metal) means nothing to the user."""
+    return ENGINE_READY_SUFFIX
 
 
 def format_engine_status(state: str, device: str) -> str:
@@ -75,10 +75,17 @@ def format_tray_engine_line(state: str, device: str) -> str:
 
 # ---- sidebar navigation ---------------------------------------------------
 
+NAV_HOME = "الرئيسية"
 NAV_HISTORY = "السجل"
 NAV_FILEJOB = "تفريغ ملف"
 NAV_SETTINGS = "الإعدادات"
 
+PAGE_HOME_SUBTITLE = "ملخص استخدامك وكيف تبدأ"
+PAGE_CONFIG_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
+SETTINGS_SUBTITLE_DICTATION = "الاختصار والميكروفون واللغة"
+SETTINGS_SUBTITLE_TEXT = "تنظيف النص وإعادة صياغته"
+SETTINGS_SUBTITLE_APP = "التشغيل والسجل والتحديثات"
+LOCAL_CHIP = "محلي، بدون إنترنت"
 PAGE_HISTORY_SUBTITLE = "كل ما كتبته بصوتك، محفوظ على جهازك فقط"
 PAGE_FILEJOB_SUBTITLE = "حوّل تسجيلًا صوتيًا أو مقطع فيديو طويلًا إلى نص"
 PAGE_SETTINGS_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
@@ -205,8 +212,57 @@ SETTINGS_SECTION_GENERAL = "عام"
 SETTINGS_SECTION_HISTORY = "السجل"
 SETTINGS_SECTION_AI = "إعادة الصياغة بالذكاء الاصطناعي"
 SETTINGS_SECTION_UPDATES = "التحديثات"
+SETTINGS_SECTION_TEXT = "النص"
+SETTINGS_SECTION_APP = "التطبيق"
+SETTINGS_TAP_TOGGLE_LABEL = "الضغط مرة يبدأ ويوقف التسجيل"
+SETTINGS_TAP_TOGGLE_HINT = "اضغط مرة للبدء ومرة أخرى للصق النص"
+SETTINGS_FILEJOB_LABEL = "تفريغ ملف صوتي"
+SETTINGS_FILEJOB_BUTTON = "تفريغ ملف صوتي…"
+SETTINGS_QUIT_LABEL = "إنهاء صاغي"
+SETTINGS_QUIT_HINT = "يوقف الإملاء ويغلق التطبيق"
+SETTINGS_QUIT_BUTTON = "إنهاء صاغي"
+FILEJOB_WINDOW_TITLE = "تفريغ ملف صوتي"
 
-SETTINGS_HOTKEY_HINT = "اضغطه مطوّلًا وتكلّم، ثم اتركه ليُكتب النص. زر Esc يلغي التسجيل."
+# ---- home page -------------------------------------------------------------
+
+HOME_STAT_SAVED = "الوقت الموفّر"
+HOME_STAT_WORDS = "الكلمات"
+HOME_STAT_SPOKEN = "مدة الكلام"
+HOME_HOWTO_TITLE = "طريقة الاستخدام"
+HOME_HOWTO_HOLD_AND_TAP = "اضغط مرة للبدء ومرة للصق، أو اضغط مطولًا وتكلم ثم ارفع"
+HOME_HOWTO_HOLD_ONLY = "اضغط مطولًا وتكلم ثم ارفع"
+HOME_HOWTO_ESC = "إلغاء التسجيل"
+HOME_MODEL_TITLE = "النموذج"
+HOME_MODEL_FAST = "صاغي السريع"
+HOME_MODEL_FAST_HINT = "دقيقة الكلام تنكتب في حوالي 3 ثواني · يحتاج 0.2 GB من الذاكرة"
+HOME_MODEL_FULL = "صاغي الكامل"
+HOME_MODEL_FULL_HINT = "دقيقة الكلام تنكتب في حوالي 12 ثانية · يحتاج 9 GB من الذاكرة"
+HOME_MODEL_FAST_MISSING = "غير متوفر على هذا الجهاز"
+HOME_MODEL_RESTART_NOTE = "يتطبق بعد إعادة التشغيل"
+HOME_MODEL_RESTART_BUTTON = "أعد التشغيل الآن"
+
+def hotkey_symbols(hotkey: str) -> str:
+    """'ctrl+alt' -> '⌃⌥', 'vk:49' -> 'Space' (the key-cap text on the Home page)."""
+    from ..hotkey_labels import hotkey_label
+
+    return hotkey_label(hotkey)
+
+
+def format_duration(seconds: float) -> str:
+    """Compact Arabic duration: '6 ث', '4 د', '1.2 س' (Western digits)."""
+    seconds = max(0.0, float(seconds))
+    if round(seconds) < 60:
+        return f"{int(round(seconds))} ث"
+    minutes = seconds / 60
+    if round(minutes) < 60:
+        return f"{int(round(minutes))} د"
+    return f"{minutes / 60:.1f} س"
+
+SETTINGS_HOTKEY_PROMPT = "اضغط الاختصار…"
+SETTINGS_HOTKEY_MAX_TWO = "اختصار من مفتاحين كحد أقصى"
+SETTINGS_HOTKEY_BARE_WARNING = "تنبيه: هذا الزر ما راح يكتب وأنت تستخدمه كاختصار"
+SETTINGS_HOTKEY_RESET = "رجوع للافتراضي"
+SETTINGS_HOTKEY_HINT = "اضغطه مرة للبدء ومرة للصق، أو مطوّلًا. Esc يلغي."
 SETTINGS_LANGUAGE_HINT = "اللغة التي تتكلم بها"
 SETTINGS_CLEANUP_HINT = "حذف كلمات التردد مثل «اممم» و«آه» من النص"
 SETTINGS_AUTOPASTE_HINT = "يُلصق النص مباشرة حيث تكتب، ويبقى أيضًا في الحافظة"
@@ -359,19 +415,13 @@ def status_line(state: str, message: str = "") -> str:
 
 def hotkey_hint(hotkey: str) -> str:
     """'اضغط Control ⌃ + Command ⌘ مطولًا للإملاء' for the menu-bar menu."""
-    label = HOTKEY_LABELS.get(hotkey, HOTKEY_LABELS["ctrl+cmd"])
+    label = HOTKEY_LABELS.get(hotkey) or isolate_ltr(hotkey_symbols(hotkey) or hotkey_symbols("ctrl+cmd"))
     return f"اضغط {label} مطولًا للإملاء"
 
 
 SETTINGS_PILL_LABEL = "التبويب العائم"
 SETTINGS_PILL_HINT = "كبسولة صغيرة تبيّن حالة صاغي، تسحبها لأي مكان وتضغطها لفتح صاغي"
 SETTINGS_PILL_RESET = "إرجاعه لمكانه"
-SETTINGS_UI_FONT_LABEL = "خط الواجهة"
-SETTINGS_UI_FONT_HINT = f"خط عربي رسمي ({isolate_ltr('Amiri')}) مضمّن في صاغي"
-UI_FONT_LABELS = {
-    "amiri": isolate_ltr("Amiri"),
-    "system": "خط النظام",
-}
 
 PILL_MODE_LABELS = {
     "always": "دائمًا ظاهر",

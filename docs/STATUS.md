@@ -2,6 +2,53 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-23 — notch UI redesign (owner's Mac, branch `claude/notch-ui`, from `claude/gguf-engine-v2` + `claude/idle-unload`)
+**Area:** `saghi/ui/notch.py` (new), `ui/dictation.py`, `hotkey.py`, `ui/sounds.py` + `ui/assets/sounds/`, `ui/mainwindow.py`, `ui/home_page.py` (new), `ui/settings_page.py`, `ui/app.py`, `history.py`.
+
+**Built (owner's request: Saghi lives in the notch, one key, a simple Apple-style window):**
+- Notch island replaces the floating pill: one black shape fused to the hardware notch (size read from NSScreen; 179x32 pt on the owner's MacBook Air), opens with a spring, shows level dots that scroll left (one slot per 0.2 s; silence stays flat, height = real mic level only), then a shimmering "processing" label; closes back into the notch. Click it to open the window. Macs without a notch: the island only appears while active.
+- Hotkey: tap (< 0.35 s) starts and the next press stops; or hold to talk; Esc discards (setting `tap_to_toggle`, default on).
+- Sounds: Saghi's own synthesized tones (`dev/make_sounds.py`): start, stop, discard, error.
+- Window: Home (time saved / words / time spoken, how to use, model choice «صاغي السريع» GGUF / «صاغي الكامل» PyTorch with restart), Configuration, History. No tray icon, no Dock icon; the app starts quietly (window only on first launch).
+- Rule change: the old pill's "nothing moves in silence" contract is replaced by "the dots scroll as a clock but never grow without sound" (test_indicator_render still covers the old pill class, which stays in the repo unused).
+
+**Verified live on the owner's Mac (branch run from source):** island pinned over the notch; tap -> Arabic sentence transcribed and pasted; Esc discarded (nothing pasted); clicking the notch opened the window; all three pages render. Tests: test_notch 35, test_tap_toggle 31, test_hotkey_logic 46, test_status_ui 161, test_gui_smoke 110, test_new_options 125, test_home_page 33 pass.
+
+**Round 2 (same day, owner's notes):** any 1-2 key shortcut via a recorder in Settings (single key like § is kept from typing via pynput darwin_intercept; verified live: § started/stopped dictation and no § was typed); macOS-style rounded buttons and fields; Settings split into Dictation / Text / App sub-pages in an animated sidebar sub-menu; pages fade in; Home stats count up; model rows show time per minute of speech (GGUF ~3 s, PyTorch ~12 s, from the 20.8 min file-job measurements); blue "local" chip and a green ready dot (cold now reads "ready").
+
+**Not done / next:** owner reviews by using it; Dock-less window focus and the restart button not tried live; history page buttons still old-style; release needs the GGUF branch's bundling work (transcribe-cli + model asset). Running from source rewrote the login LaunchAgent's PYTHONPATH to the repo; restore it to the bundle's `Resources/app` (or reinstall) when the trial ends.
+
+## 2026-11-18 (later) — GGUF one-week trial on the owner's Mac (branch `claude/gguf-engine-v2`)
+**Installed for the trial:** the branch's changed files copied into the installed v0.2.1 bundle (`Resources/app/saghi/`), `transcribe-cli` (transcribe.cpp `adfc502`) into `Resources/bin/`, settings `"engine": "gguf"` with `gguf_model` pointing at the local Q6_K file; bundle re-signed ad-hoc. Backup of the old code and settings in `~/.saghi-work/backup-before-gguf-trial/` (outside the repo). `_version.py` left at 0.2.1.
+
+**Verified live:** API health reports `stack: gguf, device: metal`; Arabic clips transcribe through the running app: first call 5.6 s (cold start: Metal and the model file paging in), then 0.25-0.5 s per 6-11 s clip. Whole app footprint 196 MB (was 9.3 GB with the PyTorch model loaded).
+
+**Mic verified live:** after the re-sign the owner ran `tccutil reset Microphone io.github.alpha2xyz.saghi-mac` and allowed the prompt; dictation works (log: 8.71 s captured, peak 0.20, transcribed in 0.3 s). Owner's first impression: "very fast", about 90% accurate on their own dictation.
+
+**Roll back:** quit Saghi, copy the backup `app/` over `Resources/app/`, restore `settings.json` (or set `"engine": "pytorch"`), re-sign ad-hoc.
+
+**Next:** owner uses it for a week (to 2026-11-25). If no difference is noticed: release with Q6_K bundled as the only engine (option 1 in the owner's page).
+
+## 2026-11-18 — GGUF engine (owner's Mac, branch `claude/gguf-engine-v2`, from `main`)
+**Area:** `saghi/gguf_engine.py`, `saghi/engines.py`, `saghi/vocabulary.py`, the `engine` / `gguf_model` settings, `dev/test_gguf_engine.py`, `dev/bench_gguf.py`. Full results: `docs/GGUF_RESULTS.md`.
+
+**Built:** an opt-in second engine: the same Cohere Arabic model as GGUF on transcribe.cpp (subprocess, no torch). Long audio is split exactly like the PyTorch path (cut points checked identical). `<hesitation>` stripped; chunks stopped by transcribe.cpp's repetition guard keep their text and are retried once as two halves. Default engine stays PyTorch (`"engine": "gguf"` in settings.json, `SAGHI_ENGINE=gguf` or `cli.py --engine gguf` to try it).
+
+**Measured (Q8/Q6/Q5/Q4):** every quant matches or beats PyTorch WER (SADA 31.7% → 26.7-31.7%, MSA 4.3%, synthetic 8.3%); the 90 s clip is complete (242 words, no loop); real set within 0.8-2.5% of PyTorch's text; a 20.8 min file in 27-45 s (PyTorch 302 s) with no loop. Memory: file size + ~0.25 GB (Q4 ~1.8 GB) vs PyTorch 9-21 GB. Custom vocabulary: transcribe.cpp ignores `--vocabulary` for this model, so it is a post-correction; it changed no WER and made one wrong change (a brand name that is also a common word).
+
+**Recommendation:** Q6_K (1.97 GB, ~2.2 GB in memory) as the GGUF default: on long real speech through the app's file-job path it tracks PyTorch like Q8_0 (4.2% on clean speech), Q4_K_M drifts twice as far (7.6%). File jobs with GGUF: 74 s vs PyTorch 242 s for 20.8 min (one process per segment; batching per read block would speed it up).
+
+**Tests:** `test_gguf_engine.py` (40 checks + optional real run), test_cleanup, test_segmentation, test_new_options pass.
+
+**Not done / next:** the GUI was not launched with GGUF (GUI smoke/status tests pass). transcribe-cli and the .gguf are not bundled in the app yet (needs the build workflow to compile transcribe.cpp and a release asset for the model; owner's yes). No UI switch yet. `claude/idle-unload` (local, unmerged) also edits `engine.py`/`app.py`; merge it before or after this and re-run the tests (the GGUF engine holds no model, so idle unload does not apply to it).
+
+## 2026-11-17 — idle model unload (owner's Mac, branch `claude/idle-unload`)
+**Found:** Saghi sat idle holding a 10 GB footprint (model loaded once, never freed), which pushed the owner's 32 GB Mac into 11.6 GB compressed memory and 3.7 GB swap.
+
+**Fix:** `SaghiEngine` now unloads the model after 600 s with no transcription (`idle_unload_s`, env `SAGHI_IDLE_UNLOAD_S` overrides; one daemon timer, re-checks `last_used` under the engine lock, so long file jobs are not cut). The next dictation reloads it lazily. `EngineStatusBridge` goes back to "cold" after an unload. New test `dev/test_idle_unload.py` (17 checks); test_status_ui (161) and test_gui_smoke (112) pass.
+
+**Measured with the real model on mps:** footprint 9.3 GB loaded -> 0.9 GB after the idle unload; reload took 3.4 s and transcribed again. **Next:** merge, release, install on the owner's Mac.
+
 ## 2026-11-02 (later) — model comparison + long-audio cut-off fix (same branch)
 **Compared** Saghi's Cohere model with Whisper large-v3-turbo (mlx) and Nemotron 3.5 Transcribe on the same 6 Arabic clips (4 short read sentences with a known text, 2 real voice notes). Word error rate on the read sentences: Cohere 8%, Whisper 15%, Nemotron 17%. Cohere was also fastest (9.5 s for all six after a 3.4 s load) and clearest on the voice notes. Decision input: no need to add another model for quality.
 

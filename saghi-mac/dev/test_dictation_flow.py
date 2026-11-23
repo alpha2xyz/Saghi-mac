@@ -133,6 +133,7 @@ settings_manager.update(
     waveform_style="bars",
     waveform_color="#4A90D9",
     microphone=None,
+    tap_to_toggle=False,  # these checks release instantly; tap-latching has dev/test_tap_toggle.py
 )
 
 controller = DictationController(engine, engine_status, settings_manager)

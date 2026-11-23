@@ -82,12 +82,25 @@ check(ctx.main_window.filejob_page is not None, "file job page constructed")
 check(ctx.main_window.settings_page is not None, "settings page constructed")
 check(ctx.engine_status.state == "cold", "engine status starts cold (model not loaded at startup)")
 check(ctx.engine.is_loaded is False, "engine.is_loaded is False at startup (never loads eagerly)")
-check(ctx.main_window.nav.count() == 3, "sidebar has exactly 3 nav entries")
+nav = ctx.main_window.nav
+check(set(nav.rows) == {"home", "settings", "settings.dictation", "settings.text", "settings.app", "history"},
+      "sidebar: Home, Settings (Dictation / Text / App), History")
+check(not nav.submenu_open, "the Settings sub-menu starts folded")
 
-# Switching nav pages must not raise.
-for row in range(3):
-    ctx.main_window.nav.setCurrentRow(row)
-    check(ctx.main_window.pages.currentIndex() == row, f"switching to nav row {row} updates the stacked page")
+# Switching pages must not raise; Settings opens its sub-menu and picks a section.
+for i, (key, page, section) in enumerate((
+    ("home", 0, None), ("settings.dictation", 1, "dictation"), ("settings.text", 1, "text"),
+    ("settings.app", 1, "app"), ("history", 2, None),
+)):
+    nav.select(key)
+    check(ctx.main_window.pages.currentIndex() == page, f"{key} shows page {page}")
+    if section:
+        check(ctx.main_window.settings_page.current_section() == section, f"{key} shows the {section} sub-page")
+        check(nav.submenu_open, f"{key}: the sub-menu is open")
+        check(nav.rows["settings"].selected and nav.rows[key].selected, f"{key}: Settings and the entry are highlighted")
+check(not nav.submenu_open, "leaving Settings folds the sub-menu")
+nav.select("settings")
+check(nav.current == "settings.dictation", "clicking Settings opens its first section")
 
 ctx.quit_fn()
 print("Test 1 passed.\n")
@@ -129,7 +142,7 @@ for key, value in new_values.items():
 
 # UI reflects: a fresh SettingsPage built from the reloaded manager shows the saved values
 page = SettingsPage(sm2)
-check(page.hotkey_combo.currentData() == "alt+cmd", "SettingsPage hotkey combo reflects saved value")
+check(page.hotkey_recorder.hotkey == "alt+cmd", "SettingsPage shortcut recorder reflects saved value")
 # "Test Microphone" isn't a connected device, so the combo keeps it
 # selected under a "not connected" label instead of pretending the
 # default is chosen (the saved setting still names that mic).
@@ -143,8 +156,6 @@ check(page.language_combo.currentData() == "en", "SettingsPage language combo re
 check(page.autopaste_check.isChecked() is False, "SettingsPage autopaste checkbox reflects saved value")
 check(page.save_rec_check.isChecked() is True, "SettingsPage save-recordings checkbox reflects saved value")
 check(page.launch_check.isChecked() is True, "SettingsPage launch-at-login checkbox reflects saved value")
-check(page.waveform_style_combo.currentData() == "pulse", "SettingsPage waveform style combo reflects saved value")
-check(page._color_value == "#FF5733", "SettingsPage waveform color reflects saved value")
 check(page.openrouter_enabled_check.isChecked() is True, "SettingsPage OpenRouter-enabled checkbox reflects saved value")
 check(
     page.openrouter_model_edit.text() == "google/gemini-3.1-flash-lite",
@@ -374,9 +385,8 @@ check(
 )
 check(
     tray5._status_action.text() == strings.format_tray_engine_line("ready", "cpu"),
-    "tray status line updates to المحرك: CPU جاهز",
+    "tray status line updates to المحرك: جاهز",
 )
-check("CPU" in tray5._status_action.text(), "the isolated device name is still findable as a plain substring (LRI/PDI are invisible formatting chars)")
 
 print("Test 5 passed.\n")
 
