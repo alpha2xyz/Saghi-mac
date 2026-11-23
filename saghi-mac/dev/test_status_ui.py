@@ -224,8 +224,12 @@ class _SpyPill(_PillBase):
         _SpyPill.calls.append(("hide",))
         super().hide()
 
+    def show_discarded(self) -> None:
+        # NotchIsland API; the pill has no separate discard animation.
+        self.hide_indicator()
 
-dictation_module.IndicatorWindow = _SpyPill
+
+dictation_module.NotchIsland = _SpyPill  # the controller's island class, swapped for the pill under test
 
 
 class _FakeRecorder:
@@ -311,7 +315,7 @@ engine = _FakeEngine()
 # "ready" behind its back under load.
 engine_status = EngineStatusBridge(engine, poll_ms=3_600_000)
 settings_manager = SettingsManager()
-settings_manager.update(sound_feedback=False, autopaste=False, save_recordings=False, openrouter_enabled=False)
+settings_manager.update(tap_to_toggle=False, sound_feedback=False, autopaste=False, save_recordings=False, openrouter_enabled=False)
 
 _SpyPill.calls.clear()
 controller = DictationController(engine, engine_status, settings_manager)

@@ -37,6 +37,11 @@ page):
 
     Later additions:
 
+    tap_to_toggle           bool  default True -- a quick tap of the hotkey
+                                    (under 0.35 s) keeps recording until the
+                                    next tap; holding still works as
+                                    press-and-hold. Off = hold-only
+
     sound_feedback          bool  default True -- short system sound when a
                                     dictation starts, finishes, or fails
     history_retention_days  int   0 | 7 | 30 | 90, default 0 (keep forever);
@@ -114,6 +119,7 @@ class Settings:
     openrouter_model: str = ""
     openrouter_instructions: str = ""
     sound_feedback: bool = True
+    tap_to_toggle: bool = True
     history_retention_days: int = 0
     auto_check_updates: bool = False
     last_update_check: str = ""
@@ -182,6 +188,7 @@ def _coerce(data: dict) -> Settings:
         "launch_at_login",
         "openrouter_enabled",
         "sound_feedback",
+        "tap_to_toggle",
         "auto_check_updates",
         "glass_effect",
     ):

@@ -30,6 +30,11 @@ Semantics (combo = a set of modifier "families", e.g. {"ctrl", "cmd"}):
   - Any other (non-modifier) key pressed while holding cancels the same
     way as Esc: the user is typing a shortcut that shares our modifiers
     (Ctrl+Cmd+Space, Shift+Cmd+4, ...), not dictating.
+  - `on_escape` fires on EVERY Esc press (held combo or not), once per
+    physical press (key-repeat of a held Esc is swallowed). The controller
+    uses it to discard a recording that is latched (tap-to-toggle) and so
+    has no held combo. While holding, `cancelled` fires as well (same
+    press); a consumer that treats both as "discard" is idempotent.
   - Debounce: macOS's own key-repeat re-fires `on_press` for a key that's
     already held (both plain keys and, per the task's explicit warning,
     can happen for modifiers too on some setups). Set-membership updates
@@ -41,7 +46,7 @@ Semantics (combo = a set of modifier "families", e.g. {"ctrl", "cmd"}):
 THREADING (see `HotkeyListener`'s docstring for detail): `pynput.keyboard
 .Listener` invokes its callbacks on its own background thread, NOT the Qt
 main thread. `HotkeyListener`'s `on_hold_started`/`on_hold_ended`/
-`on_cancelled` constructor callbacks therefore also run on that thread.
+`on_cancelled`/`on_escape` constructor callbacks therefore also run on that thread.
 This module has zero Qt dependency by design (same convention as
 recorder.py/settings.py/engine.py) -- the caller (`ui/dictation.py`'s
 `DictationController`, a `QObject`) is responsible for marshaling these
@@ -127,10 +132,13 @@ class HotkeyStateMachine:
         on_hold_started: Optional[Callable[[], None]] = None,
         on_hold_ended: Optional[Callable[[], None]] = None,
         on_cancelled: Optional[Callable[[], None]] = None,
+        on_escape: Optional[Callable[[], None]] = None,
     ) -> None:
         self.on_hold_started = on_hold_started
         self.on_hold_ended = on_hold_ended
         self.on_cancelled = on_cancelled
+        self.on_escape = on_escape
+        self._esc_down = False
         self._normalize = _build_normalize_map()
         self._held: set = set()
         self._holding = False
@@ -170,6 +178,7 @@ class HotkeyStateMachine:
         self._held.clear()
         self._holding = False
         self._cancelled_this_hold = False
+        self._esc_down = False
 
     @property
     def combo(self) -> str:
@@ -181,6 +190,9 @@ class HotkeyStateMachine:
 
     def handle_press(self, key) -> None:
         if _is_esc(key):
+            if self._esc_down:
+                return  # key-repeat of an Esc that is still down
+            self._esc_down = True
             if self._holding and not self._cancelled_this_hold:
                 self._cancelled_this_hold = True
                 # is_holding drops to False immediately -- a cancelled hold
@@ -194,6 +206,8 @@ class HotkeyStateMachine:
                 logger.debug("Hotkey hold cancelled via Esc")
                 if self.on_cancelled:
                     self.on_cancelled()
+            if self.on_escape:
+                self.on_escape()
             return
 
         name = self._normalize.get(key)
@@ -224,6 +238,7 @@ class HotkeyStateMachine:
 
     def handle_release(self, key) -> None:
         if _is_esc(key):
+            self._esc_down = False
             return  # swallow Esc's own release -- see module docstring
 
         name = self._normalize.get(key)
@@ -250,7 +265,7 @@ class HotkeyListener:
     `HotkeyStateMachine`. `start()`/`stop()` are idempotent-safe (calling
     either twice is a no-op the second time).
 
-    THREADING: `on_hold_started`/`on_hold_ended`/`on_cancelled` are invoked
+    THREADING: `on_hold_started`/`on_hold_ended`/`on_cancelled`/`on_escape` are invoked
     on pynput's own listener thread -- see module docstring. Callers that
     need to touch Qt/GUI state must marshal via a Qt signal, not call
     directly into widget code from these callbacks.
@@ -262,12 +277,14 @@ class HotkeyListener:
         on_hold_started: Optional[Callable[[], None]] = None,
         on_hold_ended: Optional[Callable[[], None]] = None,
         on_cancelled: Optional[Callable[[], None]] = None,
+        on_escape: Optional[Callable[[], None]] = None,
     ) -> None:
         self._state = HotkeyStateMachine(
             combo=combo,
             on_hold_started=on_hold_started,
             on_hold_ended=on_hold_ended,
             on_cancelled=on_cancelled,
+            on_escape=on_escape,
         )
         self._listener = None
         self._lock = threading.Lock()

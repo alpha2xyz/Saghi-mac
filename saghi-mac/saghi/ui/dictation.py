@@ -13,7 +13,11 @@
                                (clipboard + optional autopaste) -> save to
                                history (source="dictation") -> optionally
                                save the raw recording -> hide indicator
-    hotkey cancelled      -> stop+discard Recorder, hide indicator
+    hotkey cancelled / Esc -> stop+discard Recorder, indicator.show_discarded()
+
+With `tap_to_toggle` (default) a tap (< TAP_MAX_S) latches the recording: it
+goes on until the hotkey is pressed again; a longer hold stops on release.
+Esc discards a held or latched recording at any time.
 
 This is the Phase 5 counterpart to `filejob_page.py`'s `FileJobPage` +
 `FileJobWorker` (Phase 4) -- same shape: real work happens on a background
@@ -74,7 +78,7 @@ from ..recorder import Recorder, is_builtin_name, is_silent
 from ..settings import VALID_PILL_MODES, SettingsManager
 from . import sounds, strings
 from .engine_status import EngineStatusBridge
-from .indicator import IndicatorWindow
+from .notch import NotchIsland
 
 logger = logging.getLogger("saghi.ui.dictation")
 
@@ -90,6 +94,10 @@ MIN_RECORDING_S = 0.4
 # waits at most this long, then shows the recording pill and finishes the
 # start when the mic answers (see _on_hold_started / _on_mic_opened).
 MIC_OPEN_WAIT_S = 0.25
+
+# Tap-to-toggle: a hotkey press released within this time is a "tap" and keeps
+# recording (latched) until the hotkey is pressed again; longer is a hold.
+TAP_MAX_S = 0.35
 
 # Statuses that describe the pill's resting face rather than an active flow.
 _IDLE_STATUSES = ("ready", "loading", "disabled")
@@ -180,6 +188,7 @@ class DictationController(QObject):
     _hold_started_raw = Signal()
     _hold_ended_raw = Signal()
     _cancelled_raw = Signal()
+    _escape_raw = Signal()
     # (token, error or None) from the mic-open helper thread, see MIC_OPEN_WAIT_S.
     _mic_open_done = Signal(object, object)
 
@@ -202,16 +211,18 @@ class DictationController(QObject):
         self._settings_manager = settings_manager
 
         self.recorder = Recorder()
-        self.indicator = IndicatorWindow()
+        self.indicator = NotchIsland()
         self._hotkey = HotkeyListener(
             combo=settings_manager.current.hotkey,
             on_hold_started=self._hold_started_raw.emit,
             on_hold_ended=self._hold_ended_raw.emit,
             on_cancelled=self._cancelled_raw.emit,
+            on_escape=self._escape_raw.emit,
         )
         self._hold_started_raw.connect(self._on_hold_started)
         self._hold_ended_raw.connect(self._on_hold_ended)
         self._cancelled_raw.connect(self._on_cancelled)
+        self._escape_raw.connect(self._on_cancelled)  # Esc = discard, held or latched
         self._mic_open_done.connect(self._on_mic_opened)
         engine_status.status_changed.connect(self._on_engine_status_changed)
 
@@ -230,6 +241,12 @@ class DictationController(QObject):
         self._open_token: Optional[object] = None
         self._end_requested = False
         self._cancel_requested = False
+        # Tap-to-toggle state: when the current press began, whether the
+        # recording is latched (kept going after a tap), and whether the next
+        # release belongs to the press that just stopped a latched recording.
+        self._press_time = 0.0
+        self._latched = False
+        self._ignore_release = False
 
         # Single status source (see module docstring, STATUS). "" until the
         # first _recompute_status() below, so that pass always publishes.
@@ -276,6 +293,7 @@ class DictationController(QObject):
         self._stopped = True
         self._hotkey.stop()
         self._cancel_requested = True  # a slow mic open still pending closes itself
+        self._latched = False
         if self._recording_active:
             self._recording_active = False
             self.recorder.cancel()
@@ -308,6 +326,7 @@ class DictationController(QObject):
             self._hotkey.start()
         else:
             self._hotkey.stop()
+            self._latched = False
             if self._open_token is not None:
                 self._cancel_requested = True
                 self.indicator.hide_indicator()
@@ -419,10 +438,23 @@ class DictationController(QObject):
     # ---- hotkey-driven flow (main-thread slots, see module docstring) ------
 
     def _on_hold_started(self) -> None:
+        if self._latched:
+            # Second press of a tap-to-toggle recording: stop and transcribe.
+            # Its release belongs to this press and is ignored.
+            self._latched = False
+            self._ignore_release = True
+            if self._open_token is not None:
+                self._end_requested = True  # the mic is still opening
+            else:
+                self._stop_and_transcribe()
+            return
         if self._busy:
             logger.debug("hold_started ignored -- a dictation is already in progress")
             return
         self._busy = True
+        self._press_time = time.monotonic()
+        self._latched = False
+        self._ignore_release = False
 
         settings = self._settings_manager.current
         token = object()
@@ -468,6 +500,7 @@ class DictationController(QObject):
             logger.info("Microphone opened after the hold was cancelled -- discarded")
             if not self._stopped:
                 self.indicator.hide_indicator()
+            self._latched = False
             self._busy = False
             return
         if self._end_requested:
@@ -478,6 +511,7 @@ class DictationController(QObject):
             name = getattr(self.recorder, "device_name", None) or self._settings_manager.current.microphone
             logger.warning("Hotkey released before microphone %r finished opening", name or "default")
             self._show_error(strings.mic_silent_text(name) if name and not is_builtin_name(name) else strings.INDICATOR_ERROR_MIC)
+            self._latched = False
             self._busy = False
             return
         self._finish_start(error)
@@ -490,6 +524,7 @@ class DictationController(QObject):
                 sounds.play(sounds.ERROR)
             self.indicator.set_color(settings.waveform_color)
             self._show_error(strings.INDICATOR_ERROR_MIC)
+            self._latched = False
             self._busy = False
             return
 
@@ -503,9 +538,23 @@ class DictationController(QObject):
             self.indicator.show_recording(self.recorder.level)
 
     def _on_hold_ended(self) -> None:
+        if self._ignore_release:
+            self._ignore_release = False
+            return
+        if not self._latched and (self._open_token is not None or self._recording_active):
+            held_s = time.monotonic() - self._press_time
+            if self._settings_manager.current.tap_to_toggle and held_s < TAP_MAX_S:
+                self._latched = True  # a tap: keep recording until the next press
+                logger.info("Tap detected (%.2fs): recording stays on until the next press", held_s)
+                return
         if self._open_token is not None:
             self._end_requested = True
             return
+        if not self._recording_active:
+            return
+        self._stop_and_transcribe()
+
+    def _stop_and_transcribe(self) -> None:
         if not self._recording_active:
             return
         self._recording_active = False
@@ -549,6 +598,8 @@ class DictationController(QObject):
 
         settings = self._settings_manager.current
         self._pending_audio = audio
+        if settings.sound_feedback:
+            sounds.play(sounds.STOP)
 
         if not self._engine.is_loaded:
             self._engine_status.mark_loading()
@@ -573,17 +624,27 @@ class DictationController(QObject):
         self._worker.start()
 
     def _on_cancelled(self) -> None:
+        """Discard the recording (Esc, or another key pressed with the hotkey). Idempotent."""
         if self._open_token is not None:
+            if self._cancel_requested:
+                return
             self._cancel_requested = True
-            self.indicator.hide_indicator()
+            self._latched = False
+            self._discarded_feedback()
             return
         if not self._recording_active:
             return
         self._recording_active = False
+        self._latched = False
         self.recorder.cancel()
         self._pending_audio = None
-        self.indicator.hide_indicator()
+        self._discarded_feedback()
         self._busy = False
+
+    def _discarded_feedback(self) -> None:
+        self.indicator.show_discarded()
+        if self._settings_manager.current.sound_feedback:
+            sounds.play(sounds.DISCARD)
 
     # ---- transcription completion -------------------------------------------
 
@@ -616,9 +677,6 @@ class DictationController(QObject):
 
         if settings.save_recordings and self._pending_audio is not None and self._pending_audio.size:
             self._save_recording(self._pending_audio)
-
-        if settings.sound_feedback:
-            sounds.play(sounds.DONE)
 
         self._pending_audio = None
         self.indicator.hide_indicator()
