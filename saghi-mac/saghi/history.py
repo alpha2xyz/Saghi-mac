@@ -198,6 +198,29 @@ def count() -> int:
         return int(conn.execute("SELECT COUNT(*) FROM history").fetchone()[0])
 
 
+def stats() -> dict:
+    """
+    Read-only usage totals for the Home page: {"entries", "words", "spoken_s"}.
+
+    `spoken_s` sums the stored `duration_s` (audio length). A row with no
+    usable duration (<= 0) is estimated as words / 2.3 words per second.
+    """
+    words = 0
+    spoken = 0.0
+    entries = 0
+    with _connect() as conn:
+        for row in conn.execute("SELECT text, duration_s FROM history"):
+            n = len((row["text"] or "").split())
+            d = row["duration_s"] or 0.0
+            entries += 1
+            words += n
+            spoken += d if d > 0 else n / WORDS_PER_SECOND
+    return {"entries": entries, "words": words, "spoken_s": spoken}
+
+
+WORDS_PER_SECOND = 2.3
+
+
 def _escape_like(pattern: str) -> str:
     # Escape LIKE metacharacters (% and _) that might appear literally in a
     # user's search query, using backslash as the escape char (declared via

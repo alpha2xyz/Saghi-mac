@@ -253,7 +253,21 @@ QListWidget#nav::item:selected {{
 #card {{
     background: {t.card};
     border: 1px solid {t.card_border};
-    border-radius: 12px;
+    border-radius: 16px;
+}}
+#statValue {{
+    font-size: {fs(24)}px;
+    font-weight: 700;
+    color: {t.text};
+}}
+#keyCap {{
+    background: {t.hover};
+    border: 1px solid {t.card_border};
+    border-radius: 7px;
+    padding: 3px 10px;
+    font-size: {fs(14)}px;
+    font-weight: 600;
+    color: {t.text};
 }}
 #separator {{
     background: {t.separator};

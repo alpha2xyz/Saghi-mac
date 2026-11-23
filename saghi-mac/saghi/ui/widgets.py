@@ -298,6 +298,7 @@ class DragArea(QWidget):
 # working; any SF Symbol name passes straight through.
 
 _LEGACY_ICON_NAMES = {
+    "home": "house",
     "history": "clock",
     "filejob": "waveform",
     "settings": "gearshape",
@@ -307,7 +308,13 @@ _LEGACY_ICON_NAMES = {
 
 
 def icon_pixmap(name: str, size: int, color: Optional[QColor] = None, device_pixel_ratio: float = 2.0) -> QPixmap:
-    return sf_symbols.pixmap(_LEGACY_ICON_NAMES.get(name, name), size, color, dpr=device_pixel_ratio)
+    symbol = _LEGACY_ICON_NAMES.get(name, name)
+    try:
+        return sf_symbols.pixmap(symbol, size, color, dpr=device_pixel_ratio)
+    except KeyError:
+        # Symbol with no bundled fallback drawing and no native SF Symbols
+        # (non-macOS test runs): use a generic glyph rather than crash.
+        return sf_symbols.pixmap("doc.text", size, color, dpr=device_pixel_ratio)
 
 
 def icon(name: str, size: int = 18) -> QIcon:

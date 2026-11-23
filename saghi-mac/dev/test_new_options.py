@@ -372,11 +372,12 @@ with patch("saghi.login_item.is_supported", return_value=True):
     page.launch_check.setChecked(False)
     check(sm.current.launch_at_login is False and not login_item.is_enabled(), "turning it off removes it")
 
-page._set_waveform_color("#123456")
-check(sm.current.waveform_color == "#123456", "a custom waveform colour saves")
-check(not page.custom_color_dot.isHidden() and page.custom_color_dot.isChecked(), "a custom colour gets its own, selected swatch")
-page._set_waveform_color(page.color_dots[1].color)
-check(page.color_dots[1].isChecked() and page.custom_color_dot.isHidden(), "picking a preset checks its swatch and hides the custom one")
+# The pill / waveform / glass controls were removed (the notch replaces the pill).
+check(not hasattr(page, "floating_pill_combo") and not hasattr(page, "waveform_style_combo"), "the pill and waveform controls are gone from the page")
+page.tap_toggle_check.setChecked(False)
+check(sm.current.tap_to_toggle is False, "the tap-to-toggle switch saves")
+page.tap_toggle_check.setChecked(True)
+check(sm.current.tap_to_toggle is True, "...and turns back on")
 
 page.openrouter_enabled_check.setChecked(False)
 check(page.openrouter_model_edit.isEnabled() is False, "AI fields are disabled while rephrasing is off")
@@ -389,6 +390,7 @@ page.check_updates_btn.click()
 check(requested == [True], "the 'check for updates' button asks the app to open the update dialog")
 
 from saghi.ui.update_dialog import UpdateController  # noqa: E402
+
 
 ctl = UpdateController(sm, quit_app=lambda: None)
 sm.update(auto_check_updates=False)
@@ -406,40 +408,10 @@ for bad_pos in ("x", [1], [1, 2, 3], [True, 2], ["a", "b"], [float("nan"), 1], {
     check(settings._coerce({"floating_pill_pos": bad_pos}).floating_pill_pos is None, f"a bad floating_pill_pos {bad_pos!r} becomes None")
 check(settings._coerce({"floating_pill_pos": [10.4, 20]}).floating_pill_pos == [10, 20], "a good floating_pill_pos is kept as [int, int]")
 
-check(page.floating_pill_combo.count() == len(settings.VALID_PILL_MODES), "the pill combo offers every mode")
-check(
-    [page.floating_pill_combo.itemData(i) for i in range(page.floating_pill_combo.count())] == list(settings.VALID_PILL_MODES),
-    "the pill combo lists the modes in VALID_PILL_MODES order",
-)
-check(page.floating_pill_combo.currentData() == sm.current.floating_pill_mode == "always", "the pill combo starts on the saved mode")
-page.floating_pill_combo.setCurrentIndex(page.floating_pill_combo.findData("active"))
-check(sm.current.floating_pill_mode == "active", "choosing a pill mode saves it")
-check(json.loads(settings.settings_path().read_text())["floating_pill_mode"] == "active", "…to settings.json")
-_notified = []
-sm.on_change(lambda s: _notified.append(s.floating_pill_mode))
-sm.update(floating_pill_mode="always")
-check(page.floating_pill_combo.currentData() == "always", "an outside change of the pill mode (menu-bar menu) updates the combo")
-check(_notified == ["always"], "…without the page writing anything back (exactly one change notification)")
-
-check(page.pill_reset_btn.isEnabled() is False, "the pill reset button is disabled while no position is saved")
-sm.update(floating_pill_pos=[120, 340])
-check(page.pill_reset_btn.isEnabled() is True, "the pill reset button is enabled once the pill has a saved position")
-page.pill_reset_btn.click()
-check(sm.current.floating_pill_pos is None, "clicking the reset button clears the saved position")
-check(page.pill_reset_btn.isEnabled() is False, "…and disables the button again")
-check(json.loads(settings.settings_path().read_text())["floating_pill_pos"] is None, "…in settings.json too")
-
-page.floating_pill_combo.setCurrentIndex(page.floating_pill_combo.findData("active"))
-sm.update(floating_pill_pos=[5, 6])
-check(page.floating_pill_combo.currentData() == "active", "a position change leaves the pill mode selection alone")
-sm.update(floating_pill_mode="always", floating_pill_pos=None)
-
 sm2 = settings.SettingsManager()
-sm2.update(floating_pill_mode="active", floating_pill_pos=[7, 8], ui_font="system")
+sm2.update(ui_font="system")
 page2 = SettingsPage(sm2)
-check(page2.floating_pill_combo.currentData() == "active", "a new page starts on the saved pill mode")
-check(page2.pill_reset_btn.isEnabled() is True, "…with the reset button enabled for the saved position")
-check(page2.ui_font_combo.currentData() == "system", "…and the saved UI font selected")
+check(page2.ui_font_combo.currentData() == "system", "a new page starts on the saved UI font")
 
 check(page.ui_font_combo.count() == len(settings.VALID_UI_FONTS), "the UI font combo offers every font")
 check(
@@ -452,18 +424,6 @@ check(sm.current.ui_font == "system", "choosing the system font saves ui_font")
 check(json.loads(settings.settings_path().read_text())["ui_font"] == "system", "…to settings.json")
 page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("amiri"))
 check(sm.current.ui_font == "amiri", "choosing Amiri saves ui_font")
-
-# A page deleted while its listener is still registered must not raise from it.
-import shiboken6  # noqa: E402
-
-shiboken6.delete(page2)
-try:
-    page2._on_settings_changed(sm2.current)
-    check(True, "the settings listener tolerates a deleted page")
-except RuntimeError:
-    check(False, "the settings listener must tolerate a deleted page")
-sm2.update(floating_pill_mode="always")
-check(sm2.current.floating_pill_mode == "always", "later settings changes still work after the page is deleted")
 
 # Amiri everywhere except macOS's fixed-height native controls (they would clip it).
 from saghi.ui import theme  # noqa: E402

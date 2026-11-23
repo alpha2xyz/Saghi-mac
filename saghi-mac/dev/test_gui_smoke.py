@@ -143,8 +143,6 @@ check(page.language_combo.currentData() == "en", "SettingsPage language combo re
 check(page.autopaste_check.isChecked() is False, "SettingsPage autopaste checkbox reflects saved value")
 check(page.save_rec_check.isChecked() is True, "SettingsPage save-recordings checkbox reflects saved value")
 check(page.launch_check.isChecked() is True, "SettingsPage launch-at-login checkbox reflects saved value")
-check(page.waveform_style_combo.currentData() == "pulse", "SettingsPage waveform style combo reflects saved value")
-check(page._color_value == "#FF5733", "SettingsPage waveform color reflects saved value")
 check(page.openrouter_enabled_check.isChecked() is True, "SettingsPage OpenRouter-enabled checkbox reflects saved value")
 check(
     page.openrouter_model_edit.text() == "google/gemini-3.1-flash-lite",

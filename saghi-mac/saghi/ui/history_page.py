@@ -144,8 +144,8 @@ class HistoryPage(QWidget):
         self._showing_raw = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 0, 28, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(24, 0, 24, 16)
+        layout.setSpacing(10)
 
         top_row = QHBoxLayout()
         self.search_box = QLineEdit()
@@ -164,9 +164,9 @@ class HistoryPage(QWidget):
         self._stack = QStackedWidget()
         layout.addWidget(self._stack, 1)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Vertical)  # stacked: the window is small
         splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(14)
+        splitter.setHandleWidth(10)
 
         list_card = widgets.SettingsCard()
         list_card.layout().setContentsMargins(6, 6, 6, 6)
@@ -181,7 +181,7 @@ class HistoryPage(QWidget):
         self.results_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.results_list.currentRowChanged.connect(self._on_row_changed)
         list_card.layout().addWidget(self.results_list)
-        list_card.setMinimumWidth(260)
+        list_card.setMinimumHeight(130)
         splitter.addWidget(list_card)
 
         detail_card = widgets.SettingsCard()
@@ -218,8 +218,8 @@ class HistoryPage(QWidget):
         btn_row.addWidget(self.delete_btn)
         dl.addLayout(btn_row)
         splitter.addWidget(detail_card)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
         self._stack.addWidget(splitter)
 
         # ---- empty state ---------------------------------------------------------

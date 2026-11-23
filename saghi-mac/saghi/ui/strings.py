@@ -75,10 +75,13 @@ def format_tray_engine_line(state: str, device: str) -> str:
 
 # ---- sidebar navigation ---------------------------------------------------
 
+NAV_HOME = "الرئيسية"
 NAV_HISTORY = "السجل"
 NAV_FILEJOB = "تفريغ ملف"
 NAV_SETTINGS = "الإعدادات"
 
+PAGE_HOME_SUBTITLE = "ملخص استخدامك وكيف تبدأ"
+PAGE_CONFIG_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
 PAGE_HISTORY_SUBTITLE = "كل ما كتبته بصوتك، محفوظ على جهازك فقط"
 PAGE_FILEJOB_SUBTITLE = "حوّل تسجيلًا صوتيًا أو مقطع فيديو طويلًا إلى نص"
 PAGE_SETTINGS_SUBTITLE = "كل التغييرات تُحفظ مباشرة"
@@ -205,8 +208,55 @@ SETTINGS_SECTION_GENERAL = "عام"
 SETTINGS_SECTION_HISTORY = "السجل"
 SETTINGS_SECTION_AI = "إعادة الصياغة بالذكاء الاصطناعي"
 SETTINGS_SECTION_UPDATES = "التحديثات"
+SETTINGS_SECTION_TEXT = "النص"
+SETTINGS_SECTION_APP = "التطبيق"
+SETTINGS_TAP_TOGGLE_LABEL = "الضغط مرة يبدأ ويوقف التسجيل"
+SETTINGS_TAP_TOGGLE_HINT = "اضغط مرة للبدء ومرة أخرى للصق النص"
+SETTINGS_FILEJOB_LABEL = "تفريغ ملف صوتي"
+SETTINGS_FILEJOB_BUTTON = "تفريغ ملف صوتي…"
+SETTINGS_QUIT_LABEL = "إنهاء صاغي"
+SETTINGS_QUIT_HINT = "يوقف الإملاء ويغلق التطبيق"
+SETTINGS_QUIT_BUTTON = "إنهاء صاغي"
+FILEJOB_WINDOW_TITLE = "تفريغ ملف صوتي"
 
-SETTINGS_HOTKEY_HINT = "اضغطه مطوّلًا وتكلّم، ثم اتركه ليُكتب النص. زر Esc يلغي التسجيل."
+# ---- home page -------------------------------------------------------------
+
+HOME_STAT_SAVED = "الوقت الموفّر"
+HOME_STAT_WORDS = "الكلمات"
+HOME_STAT_SPOKEN = "مدة الكلام"
+HOME_HOWTO_TITLE = "طريقة الاستخدام"
+HOME_HOWTO_HOLD_AND_TAP = "اضغط مرة للبدء ومرة للصق، أو اضغط مطولًا وتكلم ثم ارفع"
+HOME_HOWTO_HOLD_ONLY = "اضغط مطولًا وتكلم ثم ارفع"
+HOME_HOWTO_ESC = "إلغاء التسجيل"
+HOME_MODEL_TITLE = "النموذج"
+HOME_MODEL_FAST = "صاغي السريع"
+HOME_MODEL_FAST_HINT = "أسرع وأخف على الذاكرة"
+HOME_MODEL_FULL = "صاغي الكامل"
+HOME_MODEL_FULL_HINT = "الأدق، يحتاج ذاكرة أكبر"
+HOME_MODEL_FAST_MISSING = "غير متوفر على هذا الجهاز"
+HOME_MODEL_RESTART_NOTE = "يتطبق بعد إعادة التشغيل"
+HOME_MODEL_RESTART_BUTTON = "أعد التشغيل الآن"
+
+# Modifier names -> the symbols printed on a Mac keyboard.
+_HOTKEY_SYMBOLS = {"ctrl": "⌃", "alt": "⌥", "shift": "⇧", "cmd": "⌘"}
+
+
+def hotkey_symbols(hotkey: str) -> str:
+    """'ctrl+alt' -> '⌃⌥' (the key-cap text on the Home page)."""
+    return "".join(_HOTKEY_SYMBOLS.get(part, "") for part in hotkey.split("+"))
+
+
+def format_duration(seconds: float) -> str:
+    """Compact Arabic duration: '6 ث', '4 د', '1.2 س' (Western digits)."""
+    seconds = max(0.0, float(seconds))
+    if round(seconds) < 60:
+        return f"{int(round(seconds))} ث"
+    minutes = seconds / 60
+    if round(minutes) < 60:
+        return f"{int(round(minutes))} د"
+    return f"{minutes / 60:.1f} س"
+
+SETTINGS_HOTKEY_HINT = "اضغطه مرة وتكلّم ثم اضغطه مرة ثانية، أو اضغطه مطوّلًا وتكلّم ثم اتركه. زر Esc يلغي التسجيل."
 SETTINGS_LANGUAGE_HINT = "اللغة التي تتكلم بها"
 SETTINGS_CLEANUP_HINT = "حذف كلمات التردد مثل «اممم» و«آه» من النص"
 SETTINGS_AUTOPASTE_HINT = "يُلصق النص مباشرة حيث تكتب، ويبقى أيضًا في الحافظة"

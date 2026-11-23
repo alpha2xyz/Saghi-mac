@@ -1,6 +1,7 @@
 """
-Settings page: live-editing controls for every saghi.settings.Settings
-field. Every control writes through SettingsManager.update() immediately
+Configuration page: live-editing controls for the user-facing settings
+(the floating-pill / waveform / glass options are gone: the notch replaces
+the pill; their fields stay in settings.py untouched). Every control writes through SettingsManager.update() immediately
 on change -- no separate "Save" button, matching settings.py's atomic-
 write-on-every-change design.
 
@@ -28,10 +29,7 @@ import logging
 from typing import List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QButtonGroup,
-    QColorDialog,
     QComboBox,
     QFrame,
     QLabel,
@@ -46,17 +44,16 @@ from PySide6.QtWidgets import (
 from .. import __version__, history, login_item, openrouter, recorder
 from ..settings import (
     VALID_HOTKEYS,
-    VALID_PILL_MODES,
     VALID_RETENTION_DAYS,
     VALID_UI_FONTS,
     SettingsManager,
 )
-from . import strings, theme, widgets
+from . import strings, widgets
 
 logger = logging.getLogger("saghi.ui.settings_page")
 
 _HOTKEY_PRESETS = list(VALID_HOTKEYS)
-_FIELD_WIDTH = 220
+_FIELD_WIDTH = 160
 
 
 class _FocusOutPlainTextEdit(QPlainTextEdit):
@@ -139,6 +136,9 @@ class SettingsPage(QWidget):
     check_updates_requested = Signal()
     # Emitted after "clear all history" so the History page can refresh.
     history_cleared = Signal()
+    # Open the file-transcription sheet / quit Saghi: the window owns both.
+    filejob_requested = Signal()
+    quit_requested = Signal()
 
     def __init__(self, settings_manager: SettingsManager, parent=None):
         super().__init__(parent)
@@ -158,8 +158,8 @@ class SettingsPage(QWidget):
         body.setObjectName("scrollBody")
         scroll.setWidget(body)
         column = QVBoxLayout(body)
-        column.setContentsMargins(28, 4, 28, 28)
-        column.setSpacing(22)
+        column.setContentsMargins(24, 0, 24, 20)
+        column.setSpacing(16)
 
         # ---- الإملاء --------------------------------------------------------
         dictation = widgets.SettingsCard()
@@ -172,6 +172,21 @@ class SettingsPage(QWidget):
         self.hotkey_combo.currentIndexChanged.connect(self._on_hotkey_changed)
         dictation.add_row(strings.SETTINGS_HOTKEY_LABEL, self.hotkey_combo, strings.SETTINGS_HOTKEY_HINT)
 
+        # Bound like every other bool; getattr keeps the page working with a
+        # Settings object that predates the field.
+        self.tap_toggle_check = widgets.ToggleSwitch()
+        self.tap_toggle_check.setChecked(bool(getattr(s, "tap_to_toggle", True)))
+        self.tap_toggle_check.toggled.connect(lambda v: self._sm.update(tap_to_toggle=v))
+        dictation.add_row(strings.SETTINGS_TAP_TOGGLE_LABEL, self.tap_toggle_check, strings.SETTINGS_TAP_TOGGLE_HINT)
+
+        self._mic_options: List[Tuple[Optional[str], str]] = []
+        self.mic_combo = _RefreshingComboBox(self.refresh_microphones)
+        self.mic_combo.setMinimumWidth(_FIELD_WIDTH)
+        self.mic_combo.setMaximumWidth(_FIELD_WIDTH + 20)
+        self.refresh_microphones()
+        self.mic_combo.currentIndexChanged.connect(self._on_mic_changed)
+        dictation.add_row(strings.SETTINGS_MIC_LABEL, self.mic_combo, strings.SETTINGS_MIC_HINT)
+
         self.language_combo = QComboBox()
         self.language_combo.setMinimumWidth(_FIELD_WIDTH)
         for lang in ("ar", "en"):
@@ -180,141 +195,34 @@ class SettingsPage(QWidget):
         self.language_combo.currentIndexChanged.connect(self._on_language_changed)
         dictation.add_row(strings.SETTINGS_LANGUAGE_LABEL, self.language_combo, strings.SETTINGS_LANGUAGE_HINT)
 
-        self.cleanup_combo = QComboBox()
-        self.cleanup_combo.setMinimumWidth(_FIELD_WIDTH)
-        for level in ("none", "light", "medium"):
-            self.cleanup_combo.addItem(strings.CLEANUP_LEVEL_LABELS[level], level)
-        self._set_combo_by_data(self.cleanup_combo, s.cleanup_level, fallback_index=1)
-        self.cleanup_combo.currentIndexChanged.connect(self._on_cleanup_changed)
-        dictation.add_row(strings.SETTINGS_CLEANUP_LABEL, self.cleanup_combo, strings.SETTINGS_CLEANUP_HINT)
+        self.sound_check = widgets.ToggleSwitch()
+        self.sound_check.setChecked(s.sound_feedback)
+        self.sound_check.toggled.connect(lambda v: self._sm.update(sound_feedback=v))
+        dictation.add_row(strings.SETTINGS_SOUND_LABEL, self.sound_check, strings.SETTINGS_SOUND_HINT)
 
         self.autopaste_check = widgets.ToggleSwitch()
         self.autopaste_check.setChecked(s.autopaste)
         self.autopaste_check.toggled.connect(lambda v: self._sm.update(autopaste=v))
         dictation.add_row(strings.SETTINGS_AUTOPASTE_LABEL, self.autopaste_check, strings.SETTINGS_AUTOPASTE_HINT)
 
-        self.sound_check = widgets.ToggleSwitch()
-        self.sound_check.setChecked(s.sound_feedback)
-        self.sound_check.toggled.connect(lambda v: self._sm.update(sound_feedback=v))
-        dictation.add_row(strings.SETTINGS_SOUND_LABEL, self.sound_check, strings.SETTINGS_SOUND_HINT)
-
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_DICTATION, dictation))
-
-        # ---- الميكروفون ------------------------------------------------------
-        mic = widgets.SettingsCard()
-        self._mic_options: List[Tuple[Optional[str], str]] = []
-        self.mic_combo = _RefreshingComboBox(self.refresh_microphones)
-        self.mic_combo.setMinimumWidth(_FIELD_WIDTH)
-        self.mic_combo.setMaximumWidth(_FIELD_WIDTH + 80)
-        self.refresh_microphones()
-        self.mic_combo.currentIndexChanged.connect(self._on_mic_changed)
-        mic.add_row(strings.SETTINGS_MIC_LABEL, self.mic_combo, strings.SETTINGS_MIC_HINT)
-
         self.save_rec_check = widgets.ToggleSwitch()
         self.save_rec_check.setChecked(s.save_recordings)
         self.save_rec_check.toggled.connect(lambda v: self._sm.update(save_recordings=v))
-        mic.add_row(strings.SETTINGS_SAVE_RECORDINGS_LABEL, self.save_rec_check, strings.SETTINGS_SAVE_RECORDINGS_HINT)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_MIC, mic))
+        dictation.add_row(strings.SETTINGS_SAVE_RECORDINGS_LABEL, self.save_rec_check, strings.SETTINGS_SAVE_RECORDINGS_HINT)
 
-        # ---- مؤشر التسجيل ---------------------------------------------------
-        indicator = widgets.SettingsCard()
-        self.waveform_style_combo = QComboBox()
-        self.waveform_style_combo.setMinimumWidth(_FIELD_WIDTH)
-        for style in ("bars", "line", "dots", "pulse"):
-            self.waveform_style_combo.addItem(strings.WAVEFORM_STYLE_LABELS[style], style)
-        self._set_combo_by_data(self.waveform_style_combo, s.waveform_style, fallback_index=0)
-        self.waveform_style_combo.currentIndexChanged.connect(self._on_waveform_style_changed)
-        indicator.add_row(
-            strings.SETTINGS_WAVEFORM_STYLE_LABEL, self.waveform_style_combo, strings.SETTINGS_WAVEFORM_STYLE_HINT
-        )
+        column.addWidget(widgets.section(strings.SETTINGS_SECTION_DICTATION, dictation))
 
-        self._color_value = s.waveform_color
-        self._color_group = QButtonGroup(self)
-        self._color_group.setExclusive(True)
-        self.color_dots: List[widgets.ColorDot] = []
-        for preset in theme.WAVEFORM_PRESETS:
-            dot = widgets.ColorDot(preset)
-            dot.clicked.connect(lambda _c=False, c=preset: self._set_waveform_color(c))
-            self._color_group.addButton(dot)
-            self.color_dots.append(dot)
-        # One extra dot that shows a custom colour when one is picked.
-        self.custom_color_dot = widgets.ColorDot(self._color_value)
-        self.custom_color_dot.clicked.connect(lambda: self._set_waveform_color(self.custom_color_dot.color))
-        self._color_group.addButton(self.custom_color_dot)
-        self.color_btn = QPushButton(strings.SETTINGS_WAVEFORM_CUSTOM_COLOR)
-        self.color_btn.clicked.connect(self._on_pick_color)
-        indicator.add_row(
-            strings.SETTINGS_WAVEFORM_COLOR_LABEL,
-            widgets.hbox(*self.color_dots, self.custom_color_dot, self.color_btn, stretch_end=False, spacing=6),
-        )
-        self._sync_color_dots()
-
-        # The floating pill: when it shows, and a way to put it back where
-        # it started. Both values can also change from outside this page
-        # (dragging the pill, the menu-bar menu), so _on_settings_changed
-        # keeps these two controls in step.
-        self.floating_pill_combo = QComboBox()
-        self.floating_pill_combo.setMinimumWidth(_FIELD_WIDTH - 60)
-        for mode in VALID_PILL_MODES:
-            self.floating_pill_combo.addItem(strings.PILL_MODE_LABELS[mode], mode)
-        self._set_combo_by_data(self.floating_pill_combo, s.floating_pill_mode, fallback_index=0)
-        self.floating_pill_combo.currentIndexChanged.connect(self._on_pill_mode_changed)
-        self.pill_reset_btn = QPushButton(strings.SETTINGS_PILL_RESET)
-        self.pill_reset_btn.setEnabled(s.floating_pill_pos is not None)
-        self.pill_reset_btn.clicked.connect(self._on_pill_reset_clicked)
-        indicator.add_row(
-            strings.SETTINGS_PILL_LABEL,
-            widgets.hbox(self.floating_pill_combo, self.pill_reset_btn, stretch_end=False),
-            strings.SETTINGS_PILL_HINT,
-        )
-        settings_manager.on_change(self._on_settings_changed)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_INDICATOR, indicator))
-
-        # ---- عام ----------------------------------------------------------------
-        general = widgets.SettingsCard()
-        self.launch_check = widgets.ToggleSwitch()
-        self.launch_check.setChecked(s.launch_at_login)
-        self.launch_check.toggled.connect(self._on_launch_at_login_changed)
-        general.add_row(strings.SETTINGS_LAUNCH_AT_LOGIN_LABEL, self.launch_check, strings.SETTINGS_LAUNCH_AT_LOGIN_HINT)
-
-        self.glass_check = widgets.ToggleSwitch()
-        self.glass_check.setChecked(s.glass_effect)
-        self.glass_check.toggled.connect(lambda v: self._sm.update(glass_effect=v))
-        general.add_row(strings.SETTINGS_GLASS_LABEL, self.glass_check, strings.SETTINGS_GLASS_HINT)
-
-        # app.py applies ui_font live through its own settings listener; this
-        # control only writes the setting.
-        self.ui_font_combo = QComboBox()
-        self.ui_font_combo.setMinimumWidth(_FIELD_WIDTH - 60)
-        for font in VALID_UI_FONTS:
-            self.ui_font_combo.addItem(strings.UI_FONT_LABELS[font], font)
-        self._set_combo_by_data(self.ui_font_combo, s.ui_font, fallback_index=0)
-        self.ui_font_combo.currentIndexChanged.connect(self._on_ui_font_changed)
-        general.add_row(strings.SETTINGS_UI_FONT_LABEL, self.ui_font_combo, strings.SETTINGS_UI_FONT_HINT)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_GENERAL, general))
-
-        # ---- السجل --------------------------------------------------------------
-        hist = widgets.SettingsCard()
-        self.history_retention_combo = QComboBox()
-        self.history_retention_combo.setMinimumWidth(_FIELD_WIDTH)
-        for days in VALID_RETENTION_DAYS:
-            self.history_retention_combo.addItem(strings.HISTORY_RETENTION_LABELS[days], days)
-        self._set_combo_by_data(self.history_retention_combo, s.history_retention_days, fallback_index=0)
-        self.history_retention_combo.currentIndexChanged.connect(self._on_retention_changed)
-        hist.add_row(
-            strings.SETTINGS_HISTORY_RETENTION_LABEL,
-            self.history_retention_combo,
-            strings.SETTINGS_HISTORY_RETENTION_HINT,
-        )
-        self.history_clear_btn = QPushButton(strings.SETTINGS_HISTORY_CLEAR_BUTTON)
-        self.history_clear_btn.clicked.connect(self._on_clear_history_clicked)
-        clear_row = hist.add_row(strings.SETTINGS_HISTORY_CLEAR_LABEL, self.history_clear_btn, " ")
-        self.history_count_label = clear_row.findChild(QLabel, "rowHint")
-        self.refresh_history_count()
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_HISTORY, hist))
-
-        # ---- OpenRouter rephrase (Phase 6) ---------------------------------
+        # ---- النص ------------------------------------------------------------
         ai = widgets.SettingsCard()
+        self.cleanup_combo = QComboBox()
+        self.cleanup_combo.setMinimumWidth(_FIELD_WIDTH)
+        for level in ("none", "light", "medium"):
+            self.cleanup_combo.addItem(strings.CLEANUP_LEVEL_LABELS[level], level)
+        self._set_combo_by_data(self.cleanup_combo, s.cleanup_level, fallback_index=1)
+        self.cleanup_combo.currentIndexChanged.connect(self._on_cleanup_changed)
+        ai.add_row(strings.SETTINGS_CLEANUP_LABEL, self.cleanup_combo, strings.SETTINGS_CLEANUP_HINT)
+
+        # OpenRouter rephrase (Phase 6), in the same card.
         self.openrouter_enabled_check = widgets.ToggleSwitch()
         self.openrouter_enabled_check.setChecked(s.openrouter_enabled)
         self.openrouter_enabled_check.toggled.connect(self._on_openrouter_enabled_changed)
@@ -329,14 +237,14 @@ class SettingsPage(QWidget):
         # typing/pasting them, unlike the free-form (often Arabic)
         # instructions box below, which stays at the page's RTL default.
         self.openrouter_model_edit = QLineEdit(s.openrouter_model)
-        self.openrouter_model_edit.setMinimumWidth(_FIELD_WIDTH + 40)
+        self.openrouter_model_edit.setFixedWidth(_FIELD_WIDTH)
         self.openrouter_model_edit.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         self.openrouter_model_edit.setPlaceholderText(strings.SETTINGS_OPENROUTER_MODEL_PLACEHOLDER)
         self.openrouter_model_edit.editingFinished.connect(self._on_openrouter_model_changed)
         self._ai_rows = [ai.add_row(strings.SETTINGS_OPENROUTER_MODEL_LABEL, self.openrouter_model_edit)]
 
         self.openrouter_key_edit = QLineEdit()
-        self.openrouter_key_edit.setMinimumWidth(_FIELD_WIDTH)
+        self.openrouter_key_edit.setMinimumWidth(60)
         self.openrouter_key_edit.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         self.openrouter_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self._refresh_key_placeholder()
@@ -376,24 +284,70 @@ class SettingsPage(QWidget):
             ai.add_widget(widgets.hbox(self.openrouter_test_btn, self.openrouter_test_result_label, spacing=12))
         )
         self._on_openrouter_enabled_changed(s.openrouter_enabled, save=False)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_AI, ai))
+        column.addWidget(widgets.section(strings.SETTINGS_SECTION_TEXT, ai))
 
-        self._openrouter_test_worker: Optional[_TestConnectionWorker] = None
+        # ---- التطبيق ---------------------------------------------------------
+        app_card = widgets.SettingsCard()
+        self.launch_check = widgets.ToggleSwitch()
+        self.launch_check.setChecked(s.launch_at_login)
+        self.launch_check.toggled.connect(self._on_launch_at_login_changed)
+        app_card.add_row(strings.SETTINGS_LAUNCH_AT_LOGIN_LABEL, self.launch_check, strings.SETTINGS_LAUNCH_AT_LOGIN_HINT)
 
-        # ---- التحديثات --------------------------------------------------------
-        updates = widgets.SettingsCard()
-        self.check_updates_btn = QPushButton(strings.SETTINGS_CHECK_UPDATES_BUTTON)
-        self.check_updates_btn.clicked.connect(self.check_updates_requested.emit)
-        updates.add_row(
-            strings.SETTINGS_VERSION_LABEL,
-            self.check_updates_btn,
-            strings.version_label(__version__),
+        # app.py applies ui_font live through its own settings listener; this
+        # control only writes the setting.
+        self.ui_font_combo = QComboBox()
+        self.ui_font_combo.setMinimumWidth(_FIELD_WIDTH - 60)
+        for font in VALID_UI_FONTS:
+            self.ui_font_combo.addItem(strings.UI_FONT_LABELS[font], font)
+        self._set_combo_by_data(self.ui_font_combo, s.ui_font, fallback_index=0)
+        self.ui_font_combo.currentIndexChanged.connect(self._on_ui_font_changed)
+        app_card.add_row(strings.SETTINGS_UI_FONT_LABEL, self.ui_font_combo, strings.SETTINGS_UI_FONT_HINT)
+
+        self.history_retention_combo = QComboBox()
+        self.history_retention_combo.setMinimumWidth(_FIELD_WIDTH - 60)
+        for days in VALID_RETENTION_DAYS:
+            self.history_retention_combo.addItem(strings.HISTORY_RETENTION_LABELS[days], days)
+        self._set_combo_by_data(self.history_retention_combo, s.history_retention_days, fallback_index=0)
+        self.history_retention_combo.currentIndexChanged.connect(self._on_retention_changed)
+        app_card.add_row(
+            strings.SETTINGS_HISTORY_RETENTION_LABEL,
+            self.history_retention_combo,
+            strings.SETTINGS_HISTORY_RETENTION_HINT,
         )
+        self.history_clear_btn = QPushButton(strings.SETTINGS_HISTORY_CLEAR_BUTTON)
+        self.history_clear_btn.clicked.connect(self._on_clear_history_clicked)
+        clear_row = app_card.add_row(strings.SETTINGS_HISTORY_CLEAR_LABEL, self.history_clear_btn, " ")
+        self.history_count_label = clear_row.findChild(QLabel, "rowHint")
+        self.refresh_history_count()
+
         self.auto_update_check = widgets.ToggleSwitch()
         self.auto_update_check.setChecked(s.auto_check_updates)
         self.auto_update_check.toggled.connect(lambda v: self._sm.update(auto_check_updates=v))
-        updates.add_row(strings.SETTINGS_AUTO_UPDATE_LABEL, self.auto_update_check, strings.SETTINGS_AUTO_UPDATE_HINT)
-        column.addWidget(widgets.section(strings.SETTINGS_SECTION_UPDATES, updates))
+        app_card.add_row(strings.SETTINGS_AUTO_UPDATE_LABEL, self.auto_update_check, strings.SETTINGS_AUTO_UPDATE_HINT)
+
+        self.check_updates_btn = QPushButton(strings.SETTINGS_CHECK_UPDATES_BUTTON)
+        self.check_updates_btn.clicked.connect(self.check_updates_requested.emit)
+        app_card.add_row(strings.SETTINGS_VERSION_LABEL, self.check_updates_btn, strings.version_label(__version__))
+
+        self.filejob_btn = QPushButton(strings.SETTINGS_FILEJOB_BUTTON)
+        self.filejob_btn.clicked.connect(self.filejob_requested.emit)
+        app_card.add_row(strings.SETTINGS_FILEJOB_LABEL, self.filejob_btn, strings.PAGE_FILEJOB_SUBTITLE)
+
+        self.quit_btn = QPushButton(strings.SETTINGS_QUIT_BUTTON)
+        self.quit_btn.clicked.connect(self.quit_requested.emit)
+        app_card.add_row(strings.SETTINGS_QUIT_LABEL, self.quit_btn, strings.SETTINGS_QUIT_HINT)
+        column.addWidget(widgets.section(strings.SETTINGS_SECTION_APP, app_card))
+
+        self._openrouter_test_worker: Optional[_TestConnectionWorker] = None
+
+        # Long item texts (hotkey, microphone names) must not widen the page:
+        # a fixed field width, the full text stays readable in the open list.
+        for combo in self.findChildren(QComboBox):
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(8)
+            combo.setMinimumWidth(0)
+            combo.setFixedWidth(_FIELD_WIDTH)
+        self.hotkey_combo.setFixedWidth(_FIELD_WIDTH + 50)  # its labels are the longest
 
         column.addStretch()
 
@@ -403,22 +357,6 @@ class SettingsPage(QWidget):
     def _set_combo_by_data(combo: QComboBox, value, fallback_index: int) -> None:
         idx = combo.findData(value)
         combo.setCurrentIndex(idx if idx >= 0 else fallback_index)
-
-    def _sync_color_dots(self) -> None:
-        current = (self._color_value or "").lower()
-        for dot in self.color_dots:
-            if dot.color.lower() == current:
-                dot.setChecked(True)
-                self.custom_color_dot.setVisible(False)
-                return
-        self.custom_color_dot.set_color(self._color_value)
-        self.custom_color_dot.setVisible(True)
-        self.custom_color_dot.setChecked(True)
-
-    def _set_waveform_color(self, hex_color: str) -> None:
-        self._color_value = hex_color
-        self._sync_color_dots()
-        self._sm.update(waveform_color=hex_color)
 
     def refresh_microphones(self) -> None:
         """Re-read the connected mics and keep the saved one selected (no settings write)."""
@@ -463,43 +401,8 @@ class SettingsPage(QWidget):
     def _on_language_changed(self, index: int) -> None:
         self._sm.update(language=self.language_combo.itemData(index))
 
-    def _on_waveform_style_changed(self, index: int) -> None:
-        self._sm.update(waveform_style=self.waveform_style_combo.itemData(index))
-
-    def _on_pill_mode_changed(self, index: int) -> None:
-        self._sm.update(floating_pill_mode=self.floating_pill_combo.itemData(index))
-
-    def _on_pill_reset_clicked(self) -> None:
-        self._sm.update(floating_pill_pos=None)
-
     def _on_ui_font_changed(self, index: int) -> None:
         self._sm.update(ui_font=self.ui_font_combo.itemData(index))
-
-    def _on_settings_changed(self, s) -> None:
-        """
-        Settings listener: the pill's mode and position also change outside
-        this page (dragging the pill, the menu-bar menu). Only reflects the
-        new values in the controls -- signals are blocked while syncing, so
-        nothing is written back and there is no update loop.
-        """
-        try:
-            self.floating_pill_combo.blockSignals(True)
-            try:
-                self._set_combo_by_data(
-                    self.floating_pill_combo, s.floating_pill_mode, fallback_index=self.floating_pill_combo.currentIndex()
-                )
-            finally:
-                self.floating_pill_combo.blockSignals(False)
-            self.pill_reset_btn.setEnabled(s.floating_pill_pos is not None)
-        except RuntimeError:
-            # The page (and its Qt widgets) was deleted while the listener
-            # stayed registered on the settings manager -- nothing to sync.
-            pass
-
-    def _on_pick_color(self) -> None:
-        color = QColorDialog.getColor(QColor(self._color_value), self, strings.SETTINGS_WAVEFORM_COLOR_LABEL)
-        if color.isValid():
-            self._set_waveform_color(color.name())
 
     def _on_launch_at_login_changed(self, enabled: bool) -> None:
         self._sm.update(launch_at_login=enabled)
