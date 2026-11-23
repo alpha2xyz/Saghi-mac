@@ -404,42 +404,16 @@ sm.update(last_update_check=datetime.now(timezone.utc).isoformat())
 check(ctl.auto_check_due() is False, "not due again within a day")
 check(ctl.auto_check_due(now=datetime.now(timezone.utc) + timedelta(days=1, minutes=1)) is True, "due again after a day")
 
-# Floating pill + UI font options.
-check(settings._coerce({"ui_font": "x"}).ui_font == "system", "an unknown ui_font falls back to the system font")
+# Floating pill options; the removed ui_font key in an old settings.json is ignored.
+check(not hasattr(settings._coerce({"ui_font": "amiri"}), "ui_font"), "an old ui_font key is ignored")
 check(settings._coerce({"floating_pill_mode": "x"}).floating_pill_mode == "always", "an unknown pill mode falls back to always")
 for bad_pos in ("x", [1], [1, 2, 3], [True, 2], ["a", "b"], [float("nan"), 1], {"x": 1, "y": 2}):
     check(settings._coerce({"floating_pill_pos": bad_pos}).floating_pill_pos is None, f"a bad floating_pill_pos {bad_pos!r} becomes None")
 check(settings._coerce({"floating_pill_pos": [10.4, 20]}).floating_pill_pos == [10, 20], "a good floating_pill_pos is kept as [int, int]")
 
-sm2 = settings.SettingsManager()
-sm2.update(ui_font="system")
-page2 = SettingsPage(sm2)
-check(page2.ui_font_combo.currentData() == "system", "a new page starts on the saved UI font")
-
-check(page.ui_font_combo.count() == len(settings.VALID_UI_FONTS), "the UI font combo offers every font")
-check(
-    [page.ui_font_combo.itemData(i) for i in range(page.ui_font_combo.count())] == list(settings.VALID_UI_FONTS),
-    "the UI font combo lists the fonts in VALID_UI_FONTS order",
-)
-check(page.ui_font_combo.currentData() == "system", "the UI font combo starts on the default font (system)")
-page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("system"))
-check(sm.current.ui_font == "system", "choosing the system font saves ui_font")
-check(json.loads(settings.settings_path().read_text())["ui_font"] == "system", "…to settings.json")
-page.ui_font_combo.setCurrentIndex(page.ui_font_combo.findData("amiri"))
-check(sm.current.ui_font == "amiri", "choosing Amiri saves ui_font")
-
-# Amiri everywhere except macOS's fixed-height native controls (they would clip it).
+check(not hasattr(page, "ui_font_combo"), "no interface-font option: Saghi uses the system font only")
 from saghi.ui import theme  # noqa: E402
 
-with patch.object(sys, "platform", "darwin"):
-    check(theme.apply_ui_font(app, "amiri") == "amiri", "Amiri applies")
-check(QApplication.font().family() == "Amiri", "the app font is Amiri")
-for cls in ("QPushButton", "QComboBox", "QLineEdit"):
-    check(QApplication.font(cls).family() != "Amiri", f"on macOS {cls} keeps the system font (fixed native height)")
-check(QApplication.font("QLabel").family() == "Amiri", "labels stay Amiri")
-check(theme.apply_ui_font(app, "system") == "system", "switching back to the system font")
-check(QApplication.font("QPushButton").family() == QApplication.font().family(), "...clears the per-class fonts")
-check(not strings.SETTINGS_UI_FONT_HINT.lstrip("\u2066")[0].isascii(),
-      "the font hint starts with Arabic, so it right-aligns under its title")
+check(not hasattr(theme, "apply_ui_font"), "no bundled-font code left in the theme")
 
 print(f"\nALL PASSED ({_checks} checks)")

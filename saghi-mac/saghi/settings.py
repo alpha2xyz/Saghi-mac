@@ -65,9 +65,6 @@ page):
     floating_pill_pos       [x, y] | None -- where the user dragged the pill
                                     (global screen coordinates of its
                                     centre); None = default, bottom centre
-    ui_font                 str   "amiri" | "system", default "system" -- the
-                                    interface typeface (Amiri is bundled in
-                                    ui/assets/fonts/, SIL OFL)
     engine                  str   "pytorch" | "gguf", default "pytorch" --
                                     the speech engine (engines.py). "gguf"
                                     runs the same model quantized on
@@ -101,7 +98,6 @@ VALID_LANGUAGES = ("ar", "en")
 VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
 VALID_RETENTION_DAYS = (0, 7, 30, 90)
 VALID_PILL_MODES = ("always", "active")
-VALID_UI_FONTS = ("amiri", "system")
 VALID_ENGINES = ("pytorch", "gguf")
 
 
@@ -127,7 +123,6 @@ class Settings:
     glass_effect: bool = True
     floating_pill_mode: str = "always"
     floating_pill_pos: Optional[list] = None
-    ui_font: str = "system"  # Apple's own font fits the macOS look; Amiri stays one click away
     engine: str = "pytorch"
     gguf_model: str = ""
 
@@ -169,8 +164,6 @@ def _coerce(data: dict) -> Settings:
     if s.floating_pill_mode not in VALID_PILL_MODES:
         s.floating_pill_mode = defaults.floating_pill_mode
     s.floating_pill_pos = _coerce_point(s.floating_pill_pos)
-    if s.ui_font not in VALID_UI_FONTS:
-        s.ui_font = defaults.ui_font
     if s.engine not in VALID_ENGINES:
         s.engine = defaults.engine
     if not isinstance(s.gguf_model, str):

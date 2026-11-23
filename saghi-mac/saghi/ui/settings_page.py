@@ -54,7 +54,6 @@ from ..hotkey_spec import (
 )
 from ..settings import (
     VALID_RETENTION_DAYS,
-    VALID_UI_FONTS,
     SettingsManager,
 )
 from . import strings, widgets
@@ -492,15 +491,6 @@ class SettingsPage(QWidget):
         self.launch_check.toggled.connect(self._on_launch_at_login_changed)
         app_card.add_row(strings.SETTINGS_LAUNCH_AT_LOGIN_LABEL, self.launch_check, strings.SETTINGS_LAUNCH_AT_LOGIN_HINT)
 
-        # app.py applies ui_font live through its own settings listener; this
-        # control only writes the setting.
-        self.ui_font_combo = QComboBox()
-        self.ui_font_combo.setMinimumWidth(_FIELD_WIDTH - 60)
-        for font in VALID_UI_FONTS:
-            self.ui_font_combo.addItem(strings.UI_FONT_LABELS[font], font)
-        self._set_combo_by_data(self.ui_font_combo, s.ui_font, fallback_index=0)
-        self.ui_font_combo.currentIndexChanged.connect(self._on_ui_font_changed)
-        app_card.add_row(strings.SETTINGS_UI_FONT_LABEL, self.ui_font_combo, strings.SETTINGS_UI_FONT_HINT)
 
         self.history_retention_combo = QComboBox()
         self.history_retention_combo.setMinimumWidth(_FIELD_WIDTH - 60)
@@ -631,9 +621,6 @@ class SettingsPage(QWidget):
 
     def _on_language_changed(self, index: int) -> None:
         self._sm.update(language=self.language_combo.itemData(index))
-
-    def _on_ui_font_changed(self, index: int) -> None:
-        self._sm.update(ui_font=self.ui_font_combo.itemData(index))
 
     def _on_launch_at_login_changed(self, enabled: bool) -> None:
         self._sm.update(launch_at_login=enabled)

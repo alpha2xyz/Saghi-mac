@@ -70,9 +70,7 @@ def _format_created_at(iso_str: str) -> str:
 class _EntryDelegate(QStyledItemDelegate):
     """Paints each entry as a rounded two-line row; the selected one gets the accent capsule."""
 
-    # Row height follows the fonts' real line heights: Amiri (the default
-    # interface font) has much taller ascenders/descenders than the system
-    # font, so a fixed height made the two lines overlap.
+    # Row height follows the font's real line heights, so the two lines never overlap.
     _PAD_Y = 8
     _GAP = 2
 

@@ -47,7 +47,6 @@ from ..engine import SaghiEngine
 from ..settings import SettingsManager, settings_path
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
-from . import theme
 from .mainwindow import MainWindow
 from .update_dialog import UpdateController
 
@@ -152,8 +151,6 @@ def build(argv: Optional[list] = None) -> AppContext:
     first_launch = not settings_path().exists()
     settings_manager = SettingsManager()
     _apply_startup_settings(settings_manager)
-    # Interface typeface (Amiri by default, bundled) -- before any widget exists.
-    theme.apply_ui_font(app, settings_manager.current.ui_font)
 
     from ..engines import make_engine
 
@@ -164,18 +161,6 @@ def build(argv: Optional[list] = None) -> AppContext:
     api_thread.start()
 
     main_window = MainWindow(settings_manager, engine, engine_status)
-
-    # Compared with the last REQUESTED font, not theme.ui_font(): if Amiri
-    # failed to load, theme falls back to "system" and the two would differ
-    # forever, re-running the switch on every unrelated settings change.
-    requested_font = [settings_manager.current.ui_font]
-
-    def _on_font_setting(settings) -> None:
-        if settings.ui_font != requested_font[0]:
-            requested_font[0] = settings.ui_font
-            theme.apply_ui_font(app, settings.ui_font)
-            main_window.restyle()
-            updates.restyle()  # an open update dialog is a separate top-level window
 
     # Phase 5: live dictation. Started with the app (global hotkey listener
     # begins immediately, default enabled) -- see dictation.py's module
@@ -229,7 +214,6 @@ def build(argv: Optional[list] = None) -> AppContext:
     # In-app updates from GitHub releases (see saghi/updater.py). Checking
     # only happens when asked, or once a day if the user turned that on.
     updates = UpdateController(settings_manager, quit_app=_quit)
-    settings_manager.on_change(_on_font_setting)  # registered once everything it restyles exists
     main_window.settings_page.check_updates_requested.connect(updates.open_dialog)
     # An automatic check that found a newer release opens the update dialog.
     updates.update_found.connect(lambda _result: updates.open_dialog())

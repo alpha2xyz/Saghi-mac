@@ -87,7 +87,6 @@ def check(condition: bool, message: str) -> None:
 
 app = QApplication.instance() or QApplication(sys.argv)
 app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)  # as in the real app
-theme.apply_ui_font(app, "amiri")  # the real UI font, for realistic metrics / screenshots
 
 M = ind._MARGIN
 COMPACT_H, EXPANDED_H = 36, 52

@@ -57,9 +57,9 @@ Licenses below are taken from each package's PyPI metadata. Wheels can bundle fu
 
 PySide6 (Qt), pynput, soxr and libsndfile are LGPL libraries. Saghi-mac uses them unmodified as separate, replaceable Python packages: the app ships them as ordinary wheels that are installed into the app's own virtual environment (`~/Applications/Saghi.app/Contents/Resources/venv`), so you can replace any of them with another version using `pip`.
 
-## Font: Amiri
+## Font: Amiri (app icon only)
 
-The app's interface and the app icon's lettering use **Amiri** (Regular and Bold), Copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri), licensed under the SIL Open Font License 1.1. The font files are shipped unmodified in `saghi-mac/saghi/ui/assets/fonts/`, with the license text next to them (`OFL-Amiri.txt`). Source: https://github.com/google/fonts/tree/main/ofl/amiri
+The lettering of the app icon was drawn with **Amiri Bold**, Copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri), licensed under the SIL Open Font License 1.1. The font itself is not shipped with the app; the interface uses the macOS system font.
 
 ## Not affiliated
 
