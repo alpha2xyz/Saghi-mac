@@ -52,7 +52,7 @@ def render() -> QImage:
 check(notch.level_from_rms(0.0) == 0.0, "silence maps to exactly 0")
 check(notch.level_from_rms(-1.0) == 0.0, "negative rms maps to 0")
 check(notch.level_from_rms(10.0) == 1.0, "loud is clamped to 1")
-check(0 < notch.level_from_rms(0.02) < notch.level_from_rms(0.06) < 1, "level grows with rms")
+check(0 < notch.level_from_rms(0.01) < notch.level_from_rms(0.03) < 1, "level grows with rms")
 p = notch.continuous_bottom_path(0, 0, 100, 40, 12)
 r = p.boundingRect()
 check(abs(r.width() - 100) < 0.01 and abs(r.height() - 40) < 0.01, "shape path spans its rect")
