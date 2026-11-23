@@ -31,8 +31,6 @@
     <dict>
         <key>PYTHONPATH</key>
         <string>__SAGHI_APP_DIR__/Contents/Resources/app</string>
-        <key>SAGHI_MODEL_DIR</key>
-        <string>__SAGHI_APP_DIR__/Contents/Resources/model</string>
     </dict>
 
     <key>WorkingDirectory</key>
