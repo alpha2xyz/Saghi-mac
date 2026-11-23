@@ -144,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           RES="$HOME/Applications/Saghi.app/Contents/Resources"
-          VOICE="$(say -v '?' | awk '/ar_SA/ {print $1; exit}')"
+          VOICE="$(say -v '?' | awk '/ ar_[A-Za-z0-9]+ / {print $1; exit}')"
           if [ -z "$VOICE" ]; then
             echo "::warning::No Arabic macOS voice on this runner: the transcription check was skipped."
             exit 0

@@ -2,6 +2,17 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-24 — v0.3.0: Saghi Fast ships in the release (branch `claude/release-0.3.0`, from `main` 3e71352)
+**Area:** `.github/workflows/build-app.yml`, `packaging/` (build_bundle, installer), `dev/requirements-arm64.txt`, `saghi/engines.py`, `settings.py`, `ui/home_page.py`, notices, docs.
+
+**Owner's decision (2026-11-24):** Fast only. The PyTorch model (3.8 GB) and the torch stack are no longer shipped.
+
+**Built:** the workflow compiles transcribe.cpp (`adfc50210a3f026a655a3e19937d90ef2bf0728c`, deployment target 13.0, static, Metal embedded; fails if anything outside `/usr/lib` and `/System/Library` is linked), fetches the Q6_K `.gguf` from Hugging Face at a pinned revision and sha256 (Apache 2.0, LICENSE/NOTICE shipped beside it), and bundles both as `Resources/bin/transcribe-cli` and `Resources/model-gguf/`. New `publish` input (default off) so a build can be tested without releasing. Default engine is `gguf`; a saved `pytorch` setting runs GGUF when no PyTorch model folder exists (so 0.2.x installs keep working after the update); the Full row is hidden then. The requirements lost torch, transformers, librosa and friends (hash changes, so 0.2.x updates through the full installer, which also deletes the old `model/` and recreates the venv if torch is in it).
+
+**Verified:** CI dry run (publish off) green: bundle built, installer smoke test, `find_cli`/`find_model` resolve, torch absent, API health ok. Download is 2.02 GB (two parts), was 3.6 GB. Locally: tests pass in a torch-less venv (460 MB; test_gui_smoke, status_ui, new_options, home_page, gguf_engine, notch, apiserver, segmentation, cleanup); the freshly built binary transcribed a spoken Arabic sentence on Metal in 5.6 s cold.
+
+**Not done / next:** the CI runner has no Arabic voice, so no transcription check ran there (fixed the voice match, may still skip). Release (publish on), then verify the in-app updater and a fresh install on the owner's Mac. The owner's Mac still runs from the repo source and has the trial install: reinstall or restore the LaunchAgent before the updater check.
+
 ## 2026-11-23 — notch UI redesign (owner's Mac, branch `claude/notch-ui`, from `claude/gguf-engine-v2` + `claude/idle-unload`)
 **Area:** `saghi/ui/notch.py` (new), `ui/dictation.py`, `hotkey.py`, `ui/sounds.py` + `ui/assets/sounds/`, `ui/mainwindow.py`, `ui/home_page.py` (new), `ui/settings_page.py`, `ui/app.py`, `history.py`.
 
