@@ -83,15 +83,21 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
 
 
 def cmd_info(args: argparse.Namespace) -> int:
-    import torch
-    import transformers
+    from . import gguf_engine
+    from .engines import engine_choice
 
-    device = SaghiEngine._detect_device()
-    native_ok = SaghiEngine.native_stack_available()
-
-    print(f"model_dir: {args.model_dir}")
-    print(f"device: {device}")
-    print(f"stack_path (prospective, not loaded): {'native' if native_ok else 'fallback'}")
+    print(f"engine: {engine_choice(args.engine)}")
+    print(f"model_dir (PyTorch, optional): {args.model_dir}")
+    print(f"transcribe-cli: {gguf_engine.find_cli()}")
+    print(f"gguf model: {gguf_engine.find_model()}")
+    try:
+        import torch
+        import transformers
+    except ImportError:
+        print("torch: not installed (not needed for the GGUF engine)")
+        return 0
+    print(f"device: {SaghiEngine._detect_device()}")
+    print(f"stack_path (prospective, not loaded): {'native' if SaghiEngine.native_stack_available() else 'fallback'}")
     print(f"torch: {torch.__version__}")
     print(f"transformers: {transformers.__version__}")
     return 0
@@ -178,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--engine",
         choices=["pytorch", "gguf"],
         default=None,
-        help="Speech engine (default: SAGHI_ENGINE or the 'engine' setting, else pytorch)",
+        help="Speech engine (default: SAGHI_ENGINE or the 'engine' setting, else gguf)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

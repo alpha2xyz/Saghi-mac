@@ -65,11 +65,13 @@ page):
     floating_pill_pos       [x, y] | None -- where the user dragged the pill
                                     (global screen coordinates of its
                                     centre); None = default, bottom centre
-    engine                  str   "pytorch" | "gguf", default "pytorch" --
+    engine                  str   "gguf" | "pytorch", default "gguf" --
                                     the speech engine (engines.py). "gguf"
-                                    runs the same model quantized on
+                                    runs the model quantized on
                                     transcribe.cpp (gguf_engine.py); applies
                                     at the next launch. SAGHI_ENGINE overrides.
+                                    "pytorch" needs a model folder that
+                                    releases from 0.3.0 no longer ship.
     gguf_model              str   default "" -- path to the .gguf file; ""
                                     = SAGHI_GGUF_MODEL or the bundled one
 """
@@ -123,7 +125,7 @@ class Settings:
     glass_effect: bool = True
     floating_pill_mode: str = "always"
     floating_pill_pos: Optional[list] = None
-    engine: str = "pytorch"
+    engine: str = "gguf"
     gguf_model: str = ""
 
     def to_dict(self) -> dict:
