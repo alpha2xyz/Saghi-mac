@@ -237,13 +237,11 @@ HOME_MODEL_FAST_MISSING = "غير متوفر على هذا الجهاز"
 HOME_MODEL_RESTART_NOTE = "يتطبق بعد إعادة التشغيل"
 HOME_MODEL_RESTART_BUTTON = "أعد التشغيل الآن"
 
-# Modifier names -> the symbols printed on a Mac keyboard.
-_HOTKEY_SYMBOLS = {"ctrl": "⌃", "alt": "⌥", "shift": "⇧", "cmd": "⌘"}
-
-
 def hotkey_symbols(hotkey: str) -> str:
-    """'ctrl+alt' -> '⌃⌥' (the key-cap text on the Home page)."""
-    return "".join(_HOTKEY_SYMBOLS.get(part, "") for part in hotkey.split("+"))
+    """'ctrl+alt' -> '⌃⌥', 'vk:49' -> 'Space' (the key-cap text on the Home page)."""
+    from ..hotkey_labels import hotkey_label
+
+    return hotkey_label(hotkey)
 
 
 def format_duration(seconds: float) -> str:
@@ -256,6 +254,10 @@ def format_duration(seconds: float) -> str:
         return f"{int(round(minutes))} د"
     return f"{minutes / 60:.1f} س"
 
+SETTINGS_HOTKEY_PROMPT = "اضغط الاختصار…"
+SETTINGS_HOTKEY_MAX_TWO = "اختصار من مفتاحين كحد أقصى"
+SETTINGS_HOTKEY_BARE_WARNING = "تنبيه: هذا الزر ما راح يكتب وأنت تستخدمه كاختصار"
+SETTINGS_HOTKEY_RESET = "رجوع للافتراضي"
 SETTINGS_HOTKEY_HINT = "اضغطه مرة وتكلّم ثم اضغطه مرة ثانية، أو اضغطه مطوّلًا وتكلّم ثم اتركه. زر Esc يلغي التسجيل."
 SETTINGS_LANGUAGE_HINT = "اللغة التي تتكلم بها"
 SETTINGS_CLEANUP_HINT = "حذف كلمات التردد مثل «اممم» و«آه» من النص"
@@ -409,7 +411,7 @@ def status_line(state: str, message: str = "") -> str:
 
 def hotkey_hint(hotkey: str) -> str:
     """'اضغط Control ⌃ + Command ⌘ مطولًا للإملاء' for the menu-bar menu."""
-    label = HOTKEY_LABELS.get(hotkey, HOTKEY_LABELS["ctrl+cmd"])
+    label = HOTKEY_LABELS.get(hotkey) or isolate_ltr(hotkey_symbols(hotkey) or hotkey_symbols("ctrl+cmd"))
     return f"اضغط {label} مطولًا للإملاء"
 
 

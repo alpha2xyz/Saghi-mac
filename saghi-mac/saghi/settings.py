@@ -11,7 +11,7 @@ same settings file without pulling in PySide6.
 Fields (per README_AR.md's «الإعدادات»
 page):
 
-    hotkey          str   default "ctrl+cmd" -- global press-and-hold hotkey
+    hotkey          str   default "ctrl+cmd" -- global hotkey, 1-2 keys (see hotkey_spec.py)
     microphone      str|None  device name, None = system default
     cleanup_level   str   "none" | "light" | "medium", default "light"
     autopaste       bool  default True
@@ -87,6 +87,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import paths
+from .hotkey_spec import normalize_hotkey
 
 logger = logging.getLogger("saghi.settings")
 
@@ -95,8 +96,8 @@ _FILENAME = "settings.json"
 VALID_CLEANUP_LEVELS = ("none", "light", "medium")
 VALID_WAVEFORM_STYLES = ("bars", "line", "dots", "pulse")
 VALID_LANGUAGES = ("ar", "en")
-# Mirrors hotkey.COMBOS' keys (duplicated so this module keeps zero
-# pynput dependency, see hotkey.py's COMBOS comment).
+# The original two-modifier presets, kept as known-good examples. Any valid
+# 1-2 key shortcut is accepted (hotkey_spec.parse_hotkey), not only these.
 VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
 VALID_RETENTION_DAYS = (0, 7, 30, 90)
 VALID_PILL_MODES = ("always", "active")
@@ -156,8 +157,7 @@ def _coerce(data: dict) -> Settings:
         s.waveform_style = defaults.waveform_style
     if s.language not in VALID_LANGUAGES:
         s.language = defaults.language
-    if s.hotkey not in VALID_HOTKEYS:
-        s.hotkey = defaults.hotkey
+    s.hotkey = normalize_hotkey(s.hotkey, defaults.hotkey)
     if s.microphone is not None and not isinstance(s.microphone, str):
         s.microphone = defaults.microphone
     if s.waveform_color is not None and not isinstance(s.waveform_color, str):

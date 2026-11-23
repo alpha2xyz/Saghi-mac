@@ -221,6 +221,10 @@ def build(argv: Optional[list] = None) -> AppContext:
     dictation.open_app_requested.connect(_show_main_window)
     main_window.quit_requested.connect(_quit)
     main_window.restart_requested.connect(_restart)
+    # While the settings page records a new shortcut the global hotkey is paused.
+    main_window.settings_page.hotkey_capture_changed.connect(
+        lambda on: dictation.suspend_hotkey() if on else dictation.resume_hotkey()
+    )
 
     # In-app updates from GitHub releases (see saghi/updater.py). Checking
     # only happens when asked, or once a day if the user turned that on.

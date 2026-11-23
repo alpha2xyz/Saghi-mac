@@ -129,7 +129,7 @@ for key, value in new_values.items():
 
 # UI reflects: a fresh SettingsPage built from the reloaded manager shows the saved values
 page = SettingsPage(sm2)
-check(page.hotkey_combo.currentData() == "alt+cmd", "SettingsPage hotkey combo reflects saved value")
+check(page.hotkey_recorder.hotkey == "alt+cmd", "SettingsPage shortcut recorder reflects saved value")
 # "Test Microphone" isn't a connected device, so the combo keeps it
 # selected under a "not connected" label instead of pretending the
 # default is chosen (the saved setting still names that mic).

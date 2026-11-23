@@ -73,6 +73,9 @@ bad = {
 }
 c = settings._coerce(bad)
 check(c.hotkey == "ctrl+cmd", "an unknown hotkey falls back to the default")
+check(settings._coerce({"hotkey": "vk:10"}).hotkey == "vk:10", "a custom single-key hotkey is kept")
+check(settings._coerce({"hotkey": "cmd+vk:49"}).hotkey == "cmd+vk:49", "a custom modifier+key hotkey is kept")
+check(settings._coerce({"hotkey": "a+b+c"}).hotkey == "ctrl+cmd", "a 3-key hotkey falls back to the default")
 check(c.history_retention_days == 0, "a retention period that is not offered falls back to 0")
 check(c.sound_feedback is True and c.auto_check_updates is False and c.glass_effect is True, "non-bool switches fall back to defaults")
 check(c.last_update_check == "", "a non-string last_update_check falls back to ''")
@@ -363,8 +366,8 @@ check(sm.current.history_retention_days == 7 and history.count() == 0, "confirmi
 
 page.sound_check.setChecked(False)
 check(sm.current.sound_feedback is False, "the sound switch saves")
-page.hotkey_combo.setCurrentIndex(page.hotkey_combo.findData("ctrl+shift"))
-check(sm.current.hotkey == "ctrl+shift", "the new hotkey presets are selectable")
+page.hotkey_recorder.hotkey_changed.emit("ctrl+shift")
+check(sm.current.hotkey == "ctrl+shift", "a recorded hotkey is saved")
 
 with patch("saghi.login_item.is_supported", return_value=True):
     page.launch_check.setChecked(True)

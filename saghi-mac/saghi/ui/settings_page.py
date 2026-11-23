@@ -10,10 +10,9 @@ Laid out like macOS System Settings: section titles over rounded cards
 
 Notes on two fields:
 
-  * hotkey     -- a fixed list of two-modifier presets
-    (settings.VALID_HOTKEYS), not free key capture; README_AR.md's
-    documented default is Ctrl+Cmd, and "fn" is not reliably hookable
-    cross-app on macOS, so it is intentionally not offered.
+  * hotkey     -- a shortcut recorder (`ShortcutRecorder`): any 1-2 keys
+    (hotkey_spec.py); the default stays Ctrl+Cmd, and "fn" is not reliably
+    hookable cross-app on macOS, so it cannot be recorded.
   * microphone -- the input devices macOS has right now, re-read every
     time the page is shown and every time the list is opened (via
     recorder.list_input_devices(refresh=True)), so a mic plugged in after
@@ -28,9 +27,10 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Tuple
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QEvent, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QHBoxLayout,
     QFrame,
     QLabel,
     QLineEdit,
@@ -42,8 +42,17 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, history, login_item, openrouter, recorder
+from ..hotkey_labels import hotkey_label
+from ..hotkey_spec import (
+    DEFAULT_HOTKEY,
+    ESC_VK,
+    MODIFIER_VK_TO_TOKEN,
+    family_of,
+    is_bare_typing_key,
+    normalize_hotkey,
+    vk_token,
+)
 from ..settings import (
-    VALID_HOTKEYS,
     VALID_RETENTION_DAYS,
     VALID_UI_FONTS,
     SettingsManager,
@@ -52,8 +61,175 @@ from . import strings, widgets
 
 logger = logging.getLogger("saghi.ui.settings_page")
 
-_HOTKEY_PRESETS = list(VALID_HOTKEYS)
 _FIELD_WIDTH = 160
+
+# Modifier order inside a recorded two-modifier shortcut (matches the presets:
+# "ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift").
+_MODIFIER_ORDER = {"ctrl": 0, "alt": 1, "shift": 2, "cmd": 3}
+# Caps lock and fn report oddly and cannot be used; their events are ignored.
+_IGNORED_VKS = frozenset({57, 63})
+
+
+class ShortcutRecorder(QPushButton):
+    """
+    A button showing the current shortcut; clicking it records the next one.
+
+    Rules (see hotkey_spec.py for the resulting string):
+      * a non-modifier key finishes the recording at once: held modifiers
+        (at most 1) + that key, e.g. Command held + Space -> "cmd+vk:49";
+      * only modifiers: the recording finishes when every key is released.
+        One modifier alone becomes the side-specific token ("alt_r" for the
+        right Option key); two different ones become the families
+        ("ctrl+alt");
+      * more than 2 keys at once: a message, and recording continues;
+      * Esc cancels and keeps the old shortcut; losing focus does too.
+
+    Keys come from Qt key events: nativeVirtualKey() is the macOS virtual
+    key code, which tells the modifier and its side apart.
+    """
+
+    hotkey_changed = Signal(str)
+    recording_changed = Signal(bool)
+    message_changed = Signal(str)
+
+    def __init__(self, hotkey: str = DEFAULT_HOTKEY, parent=None):
+        super().__init__(parent)
+        self._hotkey = normalize_hotkey(hotkey)
+        self._recording = False
+        self._down: dict = {}  # vk -> token of the keys currently held
+        self._mods_seen: dict = {}  # vk -> token of the modifiers pressed in this attempt
+        self._invalid = False
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clicked.connect(self.start_recording)
+        self._refresh_text()
+
+    # ---- state ------------------------------------------------------------
+
+    @property
+    def hotkey(self) -> str:
+        return self._hotkey
+
+    @property
+    def is_recording(self) -> bool:
+        return self._recording
+
+    def set_hotkey(self, hotkey: str) -> None:
+        self._hotkey = normalize_hotkey(hotkey)
+        self._refresh_text()
+
+    def _refresh_text(self) -> None:
+        if self._recording:
+            self.setText(strings.SETTINGS_HOTKEY_PROMPT)
+        else:
+            self.setText(strings.isolate_ltr(hotkey_label(self._hotkey)))
+
+    def start_recording(self) -> None:
+        if self._recording:
+            return
+        self._recording = True
+        self._reset_attempt()
+        self._refresh_text()
+        self.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.message_changed.emit("")
+        self.recording_changed.emit(True)
+
+    def cancel_recording(self) -> None:
+        if self._recording:
+            self._end_recording()
+
+    def _end_recording(self) -> None:
+        self._recording = False
+        self._reset_attempt()
+        self._refresh_text()
+        self.recording_changed.emit(False)
+
+    def _reset_attempt(self) -> None:
+        self._down = {}
+        self._mods_seen = {}
+        self._invalid = False
+
+    def _finish(self, hotkey: str) -> None:
+        self._hotkey = hotkey
+        self._end_recording()
+        self.message_changed.emit("")
+        self.hotkey_changed.emit(hotkey)
+
+    # ---- Qt events ----------------------------------------------------------
+
+    def event(self, e) -> bool:  # noqa: N802 -- Qt override
+        # While recording, keep ordinary shortcuts (Cmd+W, Cmd+Q ...) from
+        # firing: they are the user's input here.
+        if self._recording and e.type() == QEvent.Type.ShortcutOverride:
+            e.accept()
+            return True
+        return super().event(e)
+
+    def keyPressEvent(self, e) -> None:  # noqa: N802 -- Qt override
+        if not self._recording:
+            super().keyPressEvent(e)
+            return
+        e.accept()
+        if e.isAutoRepeat():
+            return
+        vk = int(e.nativeVirtualKey())
+        if vk == ESC_VK or e.key() == Qt.Key.Key_Escape:
+            self._end_recording()
+            self.message_changed.emit("")
+            return
+        if vk in _IGNORED_VKS:
+            return
+        mod = MODIFIER_VK_TO_TOKEN.get(vk)
+        if mod is not None:
+            self._down[vk] = mod
+            self._mods_seen[vk] = mod
+            if len(self._down) > 2:
+                self._too_many()
+            return
+        # An ordinary key.
+        if self._invalid or len(self._down) > 1:
+            self._down[vk] = vk_token(vk)
+            self._too_many()
+            return
+        mods = [t for t in self._down.values() if family_of(t)]
+        combo = [family_of(m) for m in mods] + [vk_token(vk)]
+        self._finish("+".join(combo))
+
+    def keyReleaseEvent(self, e) -> None:  # noqa: N802 -- Qt override
+        if not self._recording:
+            super().keyReleaseEvent(e)
+            return
+        e.accept()
+        if e.isAutoRepeat():
+            return
+        self._down.pop(int(e.nativeVirtualKey()), None)
+        if self._down:
+            return
+        # Everything is up.
+        if self._invalid:
+            self._reset_attempt()  # try again; the message stays
+            return
+        tokens = list(self._mods_seen.values())
+        if len(tokens) == 1:
+            self._finish(tokens[0])
+        elif len(tokens) == 2:
+            fams = sorted({family_of(t) for t in tokens}, key=_MODIFIER_ORDER.get)
+            if len(fams) == 2:
+                self._finish("+".join(fams))
+            else:
+                self._reset_attempt()  # both sides of one modifier: not a shortcut
+
+    def _too_many(self) -> None:
+        self._invalid = True
+        self.message_changed.emit(strings.SETTINGS_HOTKEY_MAX_TWO)
+
+    def focusOutEvent(self, e) -> None:  # noqa: N802 -- Qt override
+        super().focusOutEvent(e)
+        self.cancel_recording()
+
+    def hideEvent(self, e) -> None:  # noqa: N802 -- Qt override
+        super().hideEvent(e)
+        self.cancel_recording()
 
 
 class _FocusOutPlainTextEdit(QPlainTextEdit):
@@ -139,6 +315,9 @@ class SettingsPage(QWidget):
     # Open the file-transcription sheet / quit Saghi: the window owns both.
     filejob_requested = Signal()
     quit_requested = Signal()
+    # True while the shortcut recorder is listening, False when it is done: the
+    # app pauses the global hotkey in between (DictationController).
+    hotkey_capture_changed = Signal(bool)
 
     def __init__(self, settings_manager: SettingsManager, parent=None):
         super().__init__(parent)
@@ -164,13 +343,28 @@ class SettingsPage(QWidget):
         # ---- الإملاء --------------------------------------------------------
         dictation = widgets.SettingsCard()
 
-        self.hotkey_combo = QComboBox()
-        self.hotkey_combo.setMinimumWidth(_FIELD_WIDTH)
-        for value in _HOTKEY_PRESETS:
-            self.hotkey_combo.addItem(strings.HOTKEY_LABELS[value], value)
-        self._set_combo_by_data(self.hotkey_combo, s.hotkey, fallback_index=0)
-        self.hotkey_combo.currentIndexChanged.connect(self._on_hotkey_changed)
-        dictation.add_row(strings.SETTINGS_HOTKEY_LABEL, self.hotkey_combo, strings.SETTINGS_HOTKEY_HINT)
+        self.hotkey_recorder = ShortcutRecorder(s.hotkey)
+        self.hotkey_recorder.setMinimumWidth(_FIELD_WIDTH)
+        self.hotkey_recorder.hotkey_changed.connect(self._on_hotkey_changed)
+        self.hotkey_recorder.recording_changed.connect(self.hotkey_capture_changed.emit)
+        self.hotkey_reset_btn = QPushButton(strings.SETTINGS_HOTKEY_RESET)
+        self.hotkey_reset_btn.setFlat(True)
+        self.hotkey_reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hotkey_reset_btn.clicked.connect(self._on_hotkey_reset)
+        self.hotkey_note = widgets.label("", "rowHint", wrap=True)
+        self.hotkey_recorder.message_changed.connect(self._set_hotkey_message)
+        hotkey_box = QWidget()
+        hotkey_col = QVBoxLayout(hotkey_box)
+        hotkey_col.setContentsMargins(0, 0, 0, 0)
+        hotkey_col.setSpacing(4)
+        hotkey_buttons = QHBoxLayout()
+        hotkey_buttons.setSpacing(8)
+        hotkey_buttons.addWidget(self.hotkey_reset_btn)
+        hotkey_buttons.addWidget(self.hotkey_recorder)
+        hotkey_col.addLayout(hotkey_buttons)
+        hotkey_col.addWidget(self.hotkey_note)
+        self._refresh_hotkey_widgets()
+        dictation.add_row(strings.SETTINGS_HOTKEY_LABEL, hotkey_box, strings.SETTINGS_HOTKEY_HINT)
 
         # Bound like every other bool; getattr keeps the page working with a
         # Settings object that predates the field.
@@ -347,7 +541,7 @@ class SettingsPage(QWidget):
             combo.setMinimumContentsLength(8)
             combo.setMinimumWidth(0)
             combo.setFixedWidth(_FIELD_WIDTH)
-        self.hotkey_combo.setFixedWidth(_FIELD_WIDTH + 50)  # its labels are the longest
+        self.hotkey_recorder.setFixedWidth(_FIELD_WIDTH + 50)
 
         column.addStretch()
 
@@ -389,8 +583,27 @@ class SettingsPage(QWidget):
 
     # ---- change handlers ----------------------------------------------------
 
-    def _on_hotkey_changed(self, index: int) -> None:
-        self._sm.update(hotkey=self.hotkey_combo.itemData(index))
+    def _on_hotkey_changed(self, hotkey: str) -> None:
+        self._sm.update(hotkey=hotkey)
+        self._refresh_hotkey_widgets()
+
+    def _on_hotkey_reset(self) -> None:
+        self.hotkey_recorder.cancel_recording()
+        self.hotkey_recorder.set_hotkey(DEFAULT_HOTKEY)
+        self._sm.update(hotkey=DEFAULT_HOTKEY)
+        self._refresh_hotkey_widgets()
+
+    def _set_hotkey_message(self, text: str) -> None:
+        """A message from the recorder, else the "this key will not type" warning."""
+        if not text and is_bare_typing_key(self._sm.current.hotkey):
+            text = strings.SETTINGS_HOTKEY_BARE_WARNING
+        self.hotkey_note.setText(text)
+        self.hotkey_note.setVisible(bool(text))
+
+    def _refresh_hotkey_widgets(self) -> None:
+        current = self._sm.current.hotkey
+        self.hotkey_reset_btn.setVisible(current != DEFAULT_HOTKEY)
+        self._set_hotkey_message("")
 
     def _on_mic_changed(self, index: int) -> None:
         self._sm.update(microphone=self.mic_combo.itemData(index))

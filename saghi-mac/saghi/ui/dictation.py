@@ -319,6 +319,13 @@ class DictationController(QObject):
         self.indicator.hide()
         self._busy = False
 
+    def suspend_hotkey(self) -> None:
+        """The settings page is recording a new shortcut: the hotkey must not start a dictation."""
+        self._hotkey.set_paused(True)
+
+    def resume_hotkey(self) -> None:
+        self._hotkey.set_paused(False)
+
     def set_enabled(self, enabled: bool) -> None:
         """Tray menu toggle (strings.TRAY_DICTATION_TOGGLE, checkable, default on)."""
         self._enabled = enabled

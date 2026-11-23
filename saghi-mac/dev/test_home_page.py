@@ -94,6 +94,10 @@ sm.update(tap_to_toggle=False)
 check(page.hotkey_text.text() == strings.HOME_HOWTO_HOLD_ONLY, "hold-only text when tap-to-toggle is off")
 sm.update(hotkey="ctrl+alt", tap_to_toggle=True)
 check("⌃⌥" in page.hotkey_cap.text(), "hotkey change updates the key-cap")
+sm.update(hotkey="vk:10")
+check("§" in page.hotkey_cap.text(), "a custom single-key hotkey shows on the key-cap")
+sm.update(hotkey="alt_r")
+check("Right" in page.hotkey_cap.text() and "⌥" in page.hotkey_cap.text(), "a right-side modifier shows on the key-cap")
 
 # engine choice
 home_page.gguf_available = lambda gguf_model="": True
