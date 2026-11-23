@@ -95,8 +95,28 @@ _KEY_DOWN = 10
 _KEY_UP = 11
 
 
+# macOS virtual key codes of pynput's named keys, looked up by NAME so the
+# mapping is the same on every platform (on Linux, Key.<name>.value.vk is an
+# X keysym, not a macOS code; on macOS these equal pynput's own values).
+_NAMED_KEY_VK: Dict[str, int] = {
+    "ctrl": 59, "ctrl_l": 59, "ctrl_r": 62,
+    "alt": 58, "alt_l": 58, "alt_r": 61, "alt_gr": 61,
+    "cmd": 55, "cmd_l": 55, "cmd_r": 54,
+    "shift": 56, "shift_l": 56, "shift_r": 60,
+    "esc": 53, "space": 49, "tab": 48, "enter": 36, "backspace": 51, "delete": 117,
+    "caps_lock": 57, "up": 126, "down": 125, "left": 123, "right": 124,
+    "home": 115, "end": 119, "page_up": 116, "page_down": 121,
+    "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97, "f7": 98, "f8": 100,
+    "f9": 101, "f10": 109, "f11": 103, "f12": 111, "f13": 105, "f14": 107, "f15": 113,
+    "f16": 106, "f17": 64, "f18": 79, "f19": 80, "f20": 90,
+}
+
+
 def _vk_of_key(key) -> Optional[int]:
-    """The macOS virtual key code of a pynput key (KeyCode.vk, or Key.<name>.value.vk)."""
+    """The macOS virtual key code of a pynput key: named keys by name, others by KeyCode.vk."""
+    name = getattr(key, "name", None)
+    if isinstance(name, str) and name in _NAMED_KEY_VK:
+        return _NAMED_KEY_VK[name]
     vk = getattr(key, "vk", None)
     if vk is None:
         vk = getattr(getattr(key, "value", None), "vk", None)

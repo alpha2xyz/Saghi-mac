@@ -34,6 +34,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np  # noqa: E402
+
+# The engine wraps inference in torch.no_grad(); the stub engine never touches
+# torch, so CI (no torch installed) gets a tiny stand-in instead.
+try:
+    import torch  # noqa: F401
+except ImportError:
+    import contextlib
+    import types
+
+    sys.modules["torch"] = types.SimpleNamespace(no_grad=contextlib.nullcontext)
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
 from saghi.engine import SaghiEngine  # noqa: E402
