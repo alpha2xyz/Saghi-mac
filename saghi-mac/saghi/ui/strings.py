@@ -50,9 +50,9 @@ TRAY_ENGINE_PREFIX = "المحرك: "
 
 # ---- engine status (shared by the tray menu line and the header chip) ---
 
-ENGINE_COLD = "جاهز"  # the model loads on the first dictation; nothing to wait for
-ENGINE_LOADING = "جارٍ التحميل"
-ENGINE_READY_SUFFIX = "جاهز"
+ENGINE_COLD = "جاهز للإملاء"  # the model loads on the first dictation; nothing to wait for
+ENGINE_LOADING = "يجهّز نموذج الكلام…"
+ENGINE_READY_SUFFIX = "جاهز للإملاء"
 
 
 def engine_ready_label(device: str) -> str:

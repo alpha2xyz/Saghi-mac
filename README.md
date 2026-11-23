@@ -75,7 +75,7 @@ Saghi plays its own soft sounds when recording starts, stops, or is thrown away 
 - **Settings,** split into **Dictation** (shortcut, tap-to-toggle, microphone, language, sounds, auto-paste), **Text** (clean-up level, optional rewrite) and **App** (launch at login, font, history, updates, file transcription, quit).
 - **History:** everything you dictated, searchable.
 
-The sidebar shows a blue **Local, no internet** dot and a green **Ready** dot. Closing the window only hides it; Saghi keeps running in the notch. There is no Dock icon.
+The sidebar shows a blue **Local, no internet** dot and a green **Ready to dictate** dot. Closing the window only hides it; Saghi keeps running in the notch. There is no Dock icon.
 
 Your data lives in `~/Library/Application Support/Saghi/`. A local API listens on `127.0.0.1:17865` only, never on the network.
 
@@ -176,7 +176,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 - **الإعدادات** مقسمة إلى **الإملاء** (الاختصار، الضغط مرة يبدأ ويوقف، الميكروفون، اللغة، الأصوات، اللصق التلقائي)، و**النص** (مستوى التنظيف، وإعادة الصياغة الاختيارية)، و**التطبيق** (التشغيل عند بدء الجهاز، الخط، السجل، التحديثات، تفريغ ملف صوتي، إنهاء صاغي).
 - **السجل:** كل ما أمليته، مع البحث.
 
-في الشريط الجانبي نقطة زرقاء **محلي، بدون إنترنت** ونقطة خضراء **جاهز**. إغلاق النافذة يخفيها فقط، ويبقى صاغي شغّال في النوتش. ولا توجد أيقونة في الـ Dock.
+في الشريط الجانبي نقطة زرقاء **محلي، بدون إنترنت** ونقطة خضراء **جاهز للإملاء**. إغلاق النافذة يخفيها فقط، ويبقى صاغي شغّال في النوتش. ولا توجد أيقونة في الـ Dock.
 
 بياناتك في `~/Library/Application Support/Saghi/`. واجهة API محلية تعمل على `127.0.0.1:17865` فقط، ولا تستمع لأي اتصال من الشبكة.
 
