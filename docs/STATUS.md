@@ -14,6 +14,8 @@ Newest first. Every session adds an entry before it ends.
 
 **Verified live on the owner's Mac (branch run from source):** island pinned over the notch; tap -> Arabic sentence transcribed and pasted; Esc discarded (nothing pasted); clicking the notch opened the window; all three pages render. Tests: test_notch 35, test_tap_toggle 31, test_hotkey_logic 46, test_status_ui 161, test_gui_smoke 110, test_new_options 125, test_home_page 33 pass.
 
+**Round 2 (same day, owner's notes):** any 1-2 key shortcut via a recorder in Settings (single key like § is kept from typing via pynput darwin_intercept; verified live: § started/stopped dictation and no § was typed); macOS-style rounded buttons and fields; Settings split into Dictation / Text / App sub-pages in an animated sidebar sub-menu; pages fade in; Home stats count up; model rows show time per minute of speech (GGUF ~3 s, PyTorch ~12 s, from the 20.8 min file-job measurements); blue "local" chip and a green ready dot (cold now reads "ready").
+
 **Not done / next:** owner reviews by using it; Dock-less window focus and the restart button not tried live; history page buttons still old-style; release needs the GGUF branch's bundling work (transcribe-cli + model asset). Running from source rewrote the login LaunchAgent's PYTHONPATH to the repo; restore it to the bundle's `Resources/app` (or reinstall) when the trial ends.
 
 ## 2026-11-18 (later) — GGUF one-week trial on the owner's Mac (branch `claude/gguf-engine-v2`)
