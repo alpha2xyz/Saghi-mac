@@ -9,7 +9,7 @@
 #
 # What this does (copy everything into a stable per-user location,
 # independent of where this portable folder happens to sit):
-#   1. Copies python-runtime/, the saghi/ source, model/, model-gguf/ and bin/ into
+#   1. Copies python-runtime/, the saghi/ source, model-gguf/ and bin/ into
 #      ~/Applications/Saghi.app/Contents/Resources/ -- a real, mac-native
 #      .app bundle so Saghi shows up as "Saghi" (not "python3.12") in the
 #      Dock, Force Quit, and -- best effort, UNVERIFIED until real
@@ -51,12 +51,7 @@ fi
 GGUF_SRC_FILE="$(ls "$BUNDLE_DIR"/model-gguf/*.gguf 2>/dev/null | head -n 1 || true)"
 if [ -z "$GGUF_SRC_FILE" ] || [ ! -x "$BUNDLE_DIR/bin/transcribe-cli" ]; then
   say "خطأ: مجلد model-gguf أو bin غير مكتمل بجانب هذا الملف."
-  say "تأكد من نسخ مجلد Saghi-Mac-Portable كاملًا (النموذجان ~5.8GB)."
-  exit 1
-fi
-if [ ! -f "$BUNDLE_DIR/model/model.safetensors" ]; then
-  say "خطأ: مجلد model غير مكتمل بجانب هذا الملف."
-  say "تأكد من نسخ مجلد Saghi-Mac-Portable كاملًا (النموذجان ~5.8GB)."
+  say "تأكد من نسخ مجلد Saghi-Mac-Portable كاملًا (النموذج ~2GB)."
   exit 1
 fi
 if [ ! -d "$BUNDLE_DIR/saghi" ] || [ ! -f "$BUNDLE_DIR/requirements-arm64.txt" ] || [ ! -d "$BUNDLE_DIR/wheels" ]; then
@@ -96,11 +91,13 @@ if [ -f "$BUNDLE_DIR/AppIcon.icns" ]; then
   cp "$BUNDLE_DIR/AppIcon.icns" "$RES_DIR/AppIcon.icns"
 fi
 
-say "   - نسخ النموذجين المحليين (~5.8GB، قد يستغرق دقائق)..."
-rm -rf "$RES_DIR/model" "$RES_DIR/model-gguf" "$RES_DIR/bin"
+say "   - نسخ النموذج المحلي (~2GB، قد يستغرق دقيقة)..."
+# Releases before 0.3.0 shipped a 3.8 GB PyTorch model in model/; it is not used any more.
+rm -rf "$RES_DIR/model"
+rm -rf "$RES_DIR/model-gguf" "$RES_DIR/bin"
 # Try an instant copy-on-write clone first (APFS, same volume: uses no extra
 # disk space); fall back to a normal copy.
-for d in model model-gguf bin; do
+for d in model-gguf bin; do
   if ! cp -Rc "$BUNDLE_DIR/$d" "$RES_DIR/$d" 2>/dev/null; then
     rm -rf "$RES_DIR/$d"
     ditto "$BUNDLE_DIR/$d" "$RES_DIR/$d"
@@ -152,10 +149,16 @@ cat > "$MACOS_DIR/Saghi" << LAUNCHER
 # works regardless of where ~/Applications/Saghi.app physically sits.
 DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/../Resources" && pwd)"
 export PYTHONPATH="\$DIR/app"
-export SAGHI_MODEL_DIR="\$DIR/model"
 exec "\$DIR/venv/bin/$PY_BIN_NAME" -m saghi.ui.app
 LAUNCHER
 chmod +x "$MACOS_DIR/Saghi"
+
+# Releases before 0.3.0 installed torch/transformers (about 1 GB). Saghi no longer
+# uses them, and `pip install -r` does not remove packages: start the venv again.
+if [ -x "$VENV_DIR/bin/pip" ] && "$VENV_DIR/bin/pip" show torch >/dev/null 2>&1; then
+  say "   حذف مكتبات قديمة لم تعد مستخدمة (torch)..."
+  rm -rf "$VENV_DIR"
+fi
 
 # ---- 2. venv from the copied (now-stable-path) interpreter -------------
 if [ ! -x "$VENV_DIR/bin/$PY_BIN_NAME" ]; then

@@ -6,7 +6,7 @@ on:
       version:
         description: "Version to build and publish (release tag becomes v<version>)"
         required: true
-        default: "0.3.1"
+        default: "0.1.0"
       publish:
         description: "Publish the release (false = build and test only, nothing is published)"
         type: boolean
@@ -46,14 +46,6 @@ jobs:
       - name: Disk space at start
         run: df -h /
 
-      - name: Free runner disk (Android SDK, simulators; the bundle needs about 6 GB for the models alone)
-        run: |
-          set +e
-          rm -rf "$HOME/Library/Android" "$HOME/Library/Caches" 2>/dev/null
-          sudo rm -rf /Library/Developer/CoreSimulator/Volumes /Library/Developer/CoreSimulator/Images /Library/Developer/CoreSimulator/Caches 2>/dev/null
-          xcrun simctl delete all 2>/dev/null
-          df -h /
-
       - name: Build transcribe-cli (arm64, static, Metal embedded)
         run: |
           set -euo pipefail
@@ -87,35 +79,6 @@ jobs:
           test "${MINOS%%.*}" -le 13 || { echo "minos $MINOS is above 13.0" >&2; exit 1; }
           "$CLI" --help >/dev/null 2>&1 || "$CLI" -h >/dev/null 2>&1 || true
 
-      - name: Download and verify the PyTorch model (release model-v1)
-        run: |
-          set -euo pipefail
-          DL="$RUNNER_TEMP/model-dl"
-          MODEL="$RUNNER_TEMP/model-src"
-          mkdir -p "$DL" "$MODEL"
-          gh release download model-v1 --repo "$GITHUB_REPOSITORY" --dir "$DL" \
-            --pattern 'model.safetensors.part-*' \
-            --pattern 'model-config.zip' \
-            --pattern 'SHA256SUMS'
-          ls -la "$DL"
-          cd "$DL"
-          # SHA256SUMS lists the two parts, model-config.zip and the joined model.safetensors.
-          # Join part by part and delete each part right after it is appended: the runner
-          # disk is small, so the 3.8 GB must not exist twice.
-          for p in model.safetensors.part-*; do
-            grep "  $p\$" SHA256SUMS | shasum -a 256 -c -
-            cat "$p" >> model.safetensors
-            rm -f "$p"
-          done
-          grep '  model-config.zip$' SHA256SUMS | shasum -a 256 -c -
-          grep '  model.safetensors$' SHA256SUMS | shasum -a 256 -c -
-          mv model.safetensors "$MODEL/model.safetensors"
-          unzip -q model-config.zip -d "$MODEL"
-          rm -rf "$DL"
-          test -f "$MODEL/config.json" || { echo "config.json missing after unzip (zip must have files at its root)" >&2; exit 1; }
-          ls -la "$MODEL"
-          df -h /
-
       - name: Download and verify the GGUF model
         run: |
           set -euo pipefail
@@ -134,10 +97,10 @@ jobs:
         run: |
           set -euo pipefail
           D="$RUNNER_TEMP/gguf-in"
-          SAGHI_MODEL_SRC_DIR="$RUNNER_TEMP/model-src" SAGHI_GGUF_SRC="$D/$GGUF_FILE" SAGHI_TRANSCRIBE_CLI="$D/transcribe-cli" SAGHI_GGUF_NOTICES_DIR="$D" \
+          SAGHI_GGUF_SRC="$D/$GGUF_FILE" SAGHI_TRANSCRIBE_CLI="$D/transcribe-cli" SAGHI_GGUF_NOTICES_DIR="$D" \
             SAGHI_VERSION="$VERSION" python3 saghi-mac/packaging/build_bundle.py
           mv saghi-mac/packaging/output/Saghi-Mac-Portable ./Saghi-Mac-Portable
-          rm -rf "$RUNNER_TEMP/model-src" "$RUNNER_TEMP/gguf-in" "$RUNNER_TEMP/transcribe.cpp" saghi-mac/packaging/.cache saghi-mac/packaging/output
+          rm -rf "$RUNNER_TEMP/gguf-in" "$RUNNER_TEMP/transcribe.cpp" saghi-mac/packaging/.cache saghi-mac/packaging/output
           du -sh Saghi-Mac-Portable
           df -h /
 
@@ -151,12 +114,11 @@ jobs:
           RES="$APP/Contents/Resources"
           PYTHONPATH="$RES/app" QT_QPA_PLATFORM=offscreen "$RES/venv/bin/python3.12" -c \
             "import os, saghi, saghi.api, saghi.engine, saghi.updater, PySide6.QtCore; print('import ok:', saghi.__file__, saghi.__version__); assert saghi.__version__ == os.environ['VERSION'], 'version stamp missing'"
-          # The fast engine must find its runner and model, and the full (PyTorch) model and torch must be installed too.
+          # The engine must find its runner and model in the installed app, and torch must be gone.
           PYTHONPATH="$RES/app" "$RES/venv/bin/python3.12" -c \
             "from saghi import gguf_engine as g; c=g.find_cli(); m=g.find_model(); print('cli:', c); print('model:', m); assert c and m, 'transcribe-cli or the .gguf was not found'"
-          test -f "$RES/model/model.safetensors" || { echo "PyTorch model missing from the installed app" >&2; exit 1; }
-          PYTHONPATH="$RES/app" SAGHI_MODEL_DIR="$RES/model" "$RES/venv/bin/python3.12" -c \
-            "import torch; from saghi import engines; print('torch', torch.__version__); assert engines.pytorch_available(), 'Full model not detected'"
+          test ! -e "$RES/model" || { echo "old PyTorch model folder still present" >&2; exit 1; }
+          if "$RES/venv/bin/python3.12" -c "import torch" 2>/dev/null; then echo "torch is installed but should not be" >&2; exit 1; fi
           du -sh "$APP"
           df -h /
 
@@ -164,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           RES="$HOME/Applications/Saghi.app/Contents/Resources"
-          PYTHONPATH="$RES/app" SAGHI_MODEL_DIR="$RES/model" SAGHI_DATA_DIR="$RUNNER_TEMP/saghi-data" \
+          PYTHONPATH="$RES/app" SAGHI_DATA_DIR="$RUNNER_TEMP/saghi-data" \
             nohup "$RES/venv/bin/python3.12" -m saghi.cli serve > "$RUNNER_TEMP/api.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/api.pid"
           for i in $(seq 1 60); do
@@ -217,14 +179,10 @@ jobs:
           (cd Saghi-Mac-Portable && zip -qr -X "../dist/${APP_ZIP}" saghi requirements-arm64.txt -x '*.DS_Store' '*__pycache__*')
           unzip -l "dist/${APP_ZIP}" | tail -3
           unzip -p "dist/${APP_ZIP}" saghi/_version.py
-          df -h /
           # Stream the zip straight into split so the whole zip never sits on disk
-          # (the runner disk is small). The bundle is about 6.3 GB, so this makes 4 parts
-          # of at most 1900 MiB (aa, ab, ac, ad); the installer joins any number of parts.
+          # (the runner disk is small).
           ditto -c -k --keepParent Saghi-Mac-Portable - | split -b 1900m - "dist/${ZIP}.part-"
           rm -rf Saghi-Mac-Portable
-          df -h /
-          ls -la dist
           cd dist
           # the checksum of the whole zip = checksum of the parts joined in order
           ZIP_SHA="$(cat "${ZIP}".part-* | shasum -a 256 | awk '{print $1}')"

@@ -13,7 +13,7 @@ set -euo pipefail
 REPO="alpha2xyz/Saghi-mac"
 API="https://api.github.com/repos/$REPO/releases"
 MIN_MACOS_MAJOR=13
-NEED_FREE_GB=14
+NEED_FREE_GB=8
 
 say() { printf '%s\n' "$1"; }
 fail() {

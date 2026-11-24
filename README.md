@@ -17,7 +17,7 @@ Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into 
 
 - A Mac with Apple silicon (M1 or newer). Intel Macs are not supported.
 - macOS 13 (Ventura) or newer.
-- About 14 GB of free disk space while installing (the app takes about 8 GB afterwards: both models, about 5.8 GB).
+- About 8 GB of free disk space while installing (the app takes about 3 GB afterwards).
 - 8 GB of RAM or more is recommended.
 
 ## Install
@@ -28,7 +28,7 @@ Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into 
    - macOS 15 (Sequoia) or newer: double-click the file, then open System Settings, Privacy & Security, scroll down and click **Open Anyway**, then confirm.
    - macOS 13 or 14: Control-click the file, choose **Open**, then click **Open** again.
    - If macOS says the file "could not be executed because you do not have appropriate access privileges", open Terminal and run: `bash ~/Downloads/Install-Saghi-mac.command`
-4. The installer downloads the app (about 6.3 GB), checks it, and installs Saghi to `~/Applications/Saghi.app`. It needs an internet connection only for this step. No admin password is needed.
+4. The installer downloads the app (about 2.5 GB), checks it, and installs Saghi to `~/Applications/Saghi.app`. It needs an internet connection only for this step. No admin password is needed.
 5. It asks if you want Saghi to start at login (default: no).
 
 To install a specific version, run the installer with `SAGHI_RELEASE_TAG=v0.1.0`.
@@ -68,10 +68,7 @@ Saghi plays its own soft sounds when recording starts, stops, or is thrown away 
 
 ![Saghi-mac settings](saghi-mac/dev/screenshots/window-settings-dictation.png)
 
-- **Home:** time saved, words dictated and time spoken, a reminder of your shortcut, and the speech model, which you choose here:
-  - **Saghi Fast** (default, GGUF): about 3 seconds per minute of speech, about 0.2 GB of memory.
-  - **Saghi Full** (PyTorch, optional): about 12 seconds per minute of speech, about 9 GB of memory.
-  Both use the same Arabic model, so accuracy is about the same. A change applies after a restart (one click).
+- **Home:** time saved, words dictated and time spoken, a reminder of your shortcut, and the speech model, **Saghi Fast**: about 3 seconds per minute of speech, about 0.2 GB of memory. (Up to v0.2 there was also a heavier **Saghi Full** model; it gave the same accuracy, used about 9 GB of memory and is no longer shipped.)
 - **Settings,** split into **Dictation** (shortcut, tap-to-toggle, microphone, language, sounds, auto-paste), **Text** (clean-up level, optional rewrite) and **App** (launch at login, font, history, updates, file transcription, quit).
 - **History:** everything you dictated, searchable.
 
@@ -84,7 +81,7 @@ Your data lives in `~/Library/Application Support/Saghi/`. A local API listens o
 From version 0.2.0 on, open **Settings, App**, then **Check for updates**. If a newer release exists, click **Update now**:
 
 - Usually only Saghi's own code changed. The app downloads a small file (a few MB), checks it, installs it, and asks you to restart Saghi.
-- If a release changes the app's libraries, Saghi quits and opens the full installer in Terminal, which updates everything by itself (about 6.3 GB download).
+- If a release changes the app's libraries, Saghi quits and opens the full installer in Terminal, which updates everything by itself (about 2.5 GB download).
 
 Every download is checked against the release's SHA256SUMS before it is used. Saghi only contacts GitHub when you click the button, or once a day if you turn on **Check for updates automatically** (off by default). It never installs an update without your click.
 
@@ -120,7 +117,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 - جهاز Mac بمعالج Apple silicon (M1 أو أحدث). أجهزة Intel غير مدعومة.
 - نظام macOS 13 (Ventura) أو أحدث.
-- حوالي 14 GB مساحة فارغة وقت التثبيت (التطبيق بعده يأخذ حوالي 8 GB: النموذجان حوالي 5.8 GB).
+- حوالي 8 GB مساحة فارغة وقت التثبيت (التطبيق بعده يأخذ حوالي 3 GB).
 - يُنصح بذاكرة 8 GB أو أكثر.
 
 ## التثبيت
@@ -131,7 +128,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
    - macOS 15 (Sequoia) أو أحدث: انقر مرتين على الملف، ثم افتح System Settings ثم Privacy & Security، مرّر لأسفل واضغط **Open Anyway**، ثم أكّد.
    - macOS 13 أو 14: اضغط على الملف مع الضغط على Control، اختر **Open**، ثم اضغط **Open** مرة أخرى.
    - إذا ظهرت رسالة بأن الملف "could not be executed because you do not have appropriate access privileges"، افتح Terminal واكتب: `bash ~/Downloads/Install-Saghi-mac.command`
-4. سينزّل المثبّت التطبيق (حوالي 6.3 GB)، ويتحقق منه، ثم يثبّت صاغي في `~/Applications/Saghi.app`. يحتاج الإنترنت في هذه الخطوة فقط، ولا يحتاج كلمة مرور المدير.
+4. سينزّل المثبّت التطبيق (حوالي 2.5 GB)، ويتحقق منه، ثم يثبّت صاغي في `~/Applications/Saghi.app`. يحتاج الإنترنت في هذه الخطوة فقط، ولا يحتاج كلمة مرور المدير.
 5. سيسألك إن كنت تريد تشغيل صاغي عند الدخول إلى الجهاز (الافتراضي: لا).
 
 لتثبيت إصدار محدد شغّل المثبّت مع `SAGHI_RELEASE_TAG=v0.1.0`.
@@ -169,10 +166,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 ### النافذة
 
-- **الرئيسية:** الوقت الموفّر، وعدد الكلمات، ومدة الكلام، وتذكير باختصارك، واختيار النموذج:
-  - **صاغي السريع** (الافتراضي، GGUF): حوالي 3 ثواني لكل دقيقة كلام، ويحتاج حوالي 0.2 GB من الذاكرة.
-  - **صاغي الكامل** (PyTorch، اختياري): حوالي 12 ثانية لكل دقيقة كلام، ويحتاج حوالي 9 GB من الذاكرة.
-  الاثنان نفس النموذج العربي، فالدقة متقاربة. التغيير يتطبق بعد إعادة التشغيل (بضغطة واحدة).
+- **الرئيسية:** الوقت الموفّر، وعدد الكلمات، ومدة الكلام، وتذكير باختصارك، والنموذج **صاغي السريع**: حوالي 3 ثواني لكل دقيقة كلام، ويحتاج حوالي 0.2 GB من الذاكرة. (حتى v0.2 كان فيه نموذج أثقل اسمه **صاغي الكامل** بنفس الدقة ويحتاج حوالي 9 GB، وما عاد يُشحن.)
 - **الإعدادات** مقسمة إلى **الإملاء** (الاختصار، الضغط مرة يبدأ ويوقف، الميكروفون، اللغة، الأصوات، اللصق التلقائي)، و**النص** (مستوى التنظيف، وإعادة الصياغة الاختيارية)، و**التطبيق** (التشغيل عند بدء الجهاز، الخط، السجل، التحديثات، تفريغ ملف صوتي، إنهاء صاغي).
 - **السجل:** كل ما أمليته، مع البحث.
 
@@ -185,7 +179,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 من الإصدار 0.2.0 وما بعده: افتح **الإعدادات** ثم **التطبيق** ثم **التحقق من التحديثات**. إذا وُجد إصدار أحدث اضغط **تحديث الآن**:
 
 - في الغالب يتغير كود صاغي فقط، فينزّل التطبيق ملفًا صغيرًا (بضعة MB)، ويتحقق منه، ويثبّته، ثم يطلب إعادة تشغيل صاغي.
-- إذا غيّر الإصدار مكتبات التطبيق، يُغلق صاغي ويفتح المثبّت الكامل في Terminal ليحدّث كل شيء تلقائيًا (تنزيل حوالي 6.3 GB).
+- إذا غيّر الإصدار مكتبات التطبيق، يُغلق صاغي ويفتح المثبّت الكامل في Terminal ليحدّث كل شيء تلقائيًا (تنزيل حوالي 2.5 GB).
 
 كل ملف يُنزَّل يُتحقق منه بملف SHA256SUMS الخاص بالإصدار قبل استخدامه. لا يتصل صاغي بـ GitHub إلا عند ضغط الزر، أو مرة في اليوم إذا فعّلت **التحقق من التحديثات تلقائيًا** (مُطفأ افتراضيًا). ولا يثبّت أي تحديث دون موافقتك.
 
