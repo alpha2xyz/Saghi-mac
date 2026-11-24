@@ -16,6 +16,15 @@ Newest first. Every session adds an entry before it ends.
 - **Merged** as PR #11 on 2026-11-27 after the owner's dictation test (log: 3.08 s captured, peak 0.26, transcribed in 0.6 s). Dry-run build on `main` (publish off) passed, including the new launcher step and the Mach-O check in the install smoke test. Nothing published; v0.3.2 is still the latest release.
 - **Note:** `claude/both-models` has 3 commits not in `main` (punctuation, quit fix) that the owner's installed app already carries; they need their own PR before the next release.
 
+## 2026-11-24 - Auto full stop + space after each dictation (owner's Mac, branch `claude/both-models`)
+**Area:** `saghi/cleanup.py` (`finish_dictation`), `saghi/ui/dictation.py`, `dev/test_finish_dictation.py`.
+
+- Owner's report: no full stop at the end of a take, and the next take glues onto the previous one, so speaking sentence by sentence was slow.
+- Fix: before pasting a live dictation, Saghi adds «.» when the take ends without punctuation («؟» when it opens with a question word such as هل/كيف/وش/ليش; "?" for English), then one trailing space. History keeps the text without the extra space. File jobs are unchanged.
+- Tests: test_finish_dictation 14/14, test_cleanup 20/20.
+- Owner's decision: the owner's name and other words NOT added to `vocabulary.txt` for now. The ط/ظ/ض/ص mix-ups come from the model; later option is the OpenRouter text polish.
+- Not done: not tried by voice in the installed app yet; needs a release (0.3.3) or an in-place update on the owner's Mac.
+
 ## 2026-11-24 - § key crash + «آآ» left in the text (owner's Mac, branch `claude/both-models`)
 **Area:** `saghi/hotkey.py`, `saghi/cleanup.py`, `dev/test_cleanup.py`.
 

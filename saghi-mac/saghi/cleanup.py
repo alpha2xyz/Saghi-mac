@@ -143,3 +143,40 @@ def clean_transcript(text: str, level: str = "light") -> str:
         text = _tidy_spacing(text)
 
     return text
+
+
+# ---- live dictation: finish each take so takes join cleanly ----------------
+
+_END_PUNCT = "،؛؟!.,:;?…"
+_CLOSERS = "\"')]}»”’"
+_AR_QUESTION_WORDS = {
+    "هل", "كيف", "ليش", "ليه", "وش", "ايش", "إيش", "شو", "متى", "وين",
+    "فين", "كم", "مين", "لماذا", "ماذا", "أين", "كيفك", "اش",
+}
+_EN_QUESTION_WORDS = {
+    "what", "why", "how", "when", "where", "who", "which", "is", "are",
+    "do", "does", "did", "can", "could", "should", "would", "will",
+}
+_ARABIC_LETTER_RE = re.compile(r"[؀-ۿ]")
+
+
+def finish_dictation(text: str) -> str:
+    """
+    Make one dictated take ready to paste after the previous one: add a
+    full stop when the take ends without punctuation («؟» / "?" when it
+    opens with a question word), then one trailing space so the next take
+    does not glue onto this one. Empty input stays empty.
+    """
+    body = text.strip()
+    if not body:
+        return ""
+    core = body.rstrip(_CLOSERS)
+    if not core or core[-1] not in _END_PUNCT:
+        first = body.split()[0].strip(_PUNCT_CHARS)
+        arabic = bool(_ARABIC_LETTER_RE.search(body))
+        if arabic:
+            mark = "؟" if first in _AR_QUESTION_WORDS else "."
+        else:
+            mark = "?" if first.lower() in _EN_QUESTION_WORDS else "."
+        body += mark
+    return body + " "
