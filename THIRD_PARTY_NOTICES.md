@@ -9,7 +9,7 @@ Saghi-mac's own code is MIT licensed (see [LICENSE](LICENSE)). It uses and ships
 | cohere-transcribe-arabic-07-2026 (CohereLabs), original model | Apache 2.0 | https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026 |
 | cohere-transcribe-arabic-07-2026-Q6_K.gguf: a quantized (6-bit) conversion of that model made by handy-computer | Apache 2.0 | https://huggingface.co/handy-computer/cohere-transcribe-arabic-07-2026-gguf |
 
-Since v0.3.0 the app ships the Q6_K GGUF file, a third-party quantized derivative of the CohereLabs model. Saghi-mac itself does not modify it: the file is bundled byte for byte (the build checks its sha256) in the app's `model-gguf/` folder, next to the `LICENSE` and `NOTICE` files of the GGUF repository. The release build fetches it from the GGUF repository at a pinned revision.
+The app ships both: the original model as PyTorch weights ("Saghi Full", `model.safetensors` in the app's `model/` folder, with the model's own `LICENSE` and `README.md`; Saghi-mac does not modify it), and, since v0.3.0, the Q6_K GGUF file ("Saghi Fast"), a third-party quantized derivative of the CohereLabs model. Saghi-mac itself does not modify it: the file is bundled byte for byte (the build checks its sha256) in the app's `model-gguf/` folder, next to the `LICENSE` and `NOTICE` files of the GGUF repository. The release build fetches it from the GGUF repository at a pinned revision.
 
 ## Speech engine
 
@@ -33,7 +33,18 @@ Licenses below are taken from each package's PyPI metadata. Wheels can bundle fu
 | Package | License |
 |---|---|
 | PySide6 (Qt for Python) | LGPL-3.0 (also offered under GPL-2.0/GPL-3.0 and commercial terms). Qt: https://doc.qt.io/qt-6/lgpl.html |
+| torch | BSD-3-Clause (plus bundled components under Apache-2.0, BSD-2-Clause, BSL-1.0, MIT) |
+| transformers | Apache 2.0 |
+| accelerate | Apache 2.0 |
+| safetensors | Apache 2.0 |
+| tokenizers | Apache 2.0 |
+| huggingface_hub | Apache 2.0 |
+| sentencepiece | Apache 2.0 |
+| protobuf | BSD-3-Clause |
 | numpy | BSD-3-Clause (plus bundled components under 0BSD, MIT, Zlib, CC0-1.0) |
+| scipy | BSD-3-Clause |
+| librosa | ISC |
+| numba, llvmlite (installed as librosa dependencies) | BSD-2-Clause (llvmlite also Apache-2.0 with LLVM exception) |
 | soundfile | BSD-3-Clause (its wheels bundle libsndfile, LGPL-2.1) |
 | soxr (python-soxr) | LGPL-2.1-or-later |
 | sounddevice | MIT (its wheels bundle PortAudio, MIT) |
@@ -49,7 +60,7 @@ Licenses below are taken from each package's PyPI metadata. Wheels can bundle fu
 | keyring | MIT |
 | jaraco.classes, jaraco.functools, jaraco.context | MIT |
 | more-itertools | MIT |
-| Other transitive dependencies (anyio, h11, httpcore, certifi, click, cffi, ...) | see each package |
+| Other transitive dependencies (scikit-learn, joblib, decorator, pooch, lazy_loader, msgpack, anyio, h11, httpcore, certifi, click, cffi, ...) | see each package |
 
 ## LGPL note
 

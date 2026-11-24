@@ -1,6 +1,6 @@
 # Building Saghi-mac
 
-Saghi-mac is a Python app (PySide6 GUI, a local FastAPI server, and a quantized Arabic speech model run by transcribe.cpp) that is packaged as an offline, Apple-silicon-only bundle.
+Saghi-mac is a Python app (PySide6 GUI, a local FastAPI server, and and two builds of one Arabic speech model: a quantized GGUF run by transcribe.cpp, "Saghi Fast", and the PyTorch checkpoint, "Saghi Full") that is packaged as an offline, Apple-silicon-only bundle.
 
 ## Layout
 
@@ -18,7 +18,7 @@ saghi-mac/packaging/    build_bundle.py, install-saghi.command, Install-Saghi-ma
 1. Downloads a pinned arm64 python-build-standalone CPython (URL and sha256 are pinned in the script) into the cache and unpacks it to `python-runtime/`.
 2. Runs `pip download --platform macosx_13_0_arm64 --python-version 3.12 --only-binary=:all:` for `saghi-mac/dev/requirements-arm64.txt` into `wheels/`. This fetches Apple-silicon wheels even from another machine.
 3. Copies `saghi-mac/saghi/` to `saghi/`.
-4. Copies the Q6_K `.gguf` to `model-gguf/` (sha256 checked against the pinned value, with the model's `LICENSE` and `NOTICE`) and the compiled `transcribe-cli` to `bin/` (with transcribe.cpp's license).
+4. Copies the PyTorch model folder to `model/` and checks the sha256 of `model.safetensors` against the source. Copies the Q6_K `.gguf` to `model-gguf/` (sha256 checked against the pinned value, with the model's `LICENSE` and `NOTICE`) and the compiled `transcribe-cli` to `bin/` (with transcribe.cpp's license).
 5. Copies `install-saghi.command`, the Arabic docs, the LaunchAgent template and the requirements file.
 6. Writes `MANIFEST.json` with checksums.
 
@@ -26,6 +26,7 @@ saghi-mac/packaging/    build_bundle.py, install-saghi.command, Install-Saghi-ma
 
 | Variable | Meaning |
 |---|---|
+| `SAGHI_MODEL_SRC_DIR` | Folder holding the PyTorch model (`model.safetensors` plus the config, tokenizer, README and LICENSE files). Required unless `saghi-mac/model/` exists. |
 | `SAGHI_GGUF_SRC` | The `cohere-transcribe-arabic-07-2026-Q6_K.gguf` file. |
 | `SAGHI_TRANSCRIBE_CLI` | The compiled `transcribe-cli` (arm64). |
 | `SAGHI_GGUF_NOTICES_DIR` | Folder with `LICENSE`, `NOTICE` (the model) and `LICENSE-transcribe.cpp`. |
@@ -35,12 +36,14 @@ saghi-mac/packaging/    build_bundle.py, install-saghi.command, Install-Saghi-ma
 
 Runtime variables used by the app itself: `SAGHI_MODEL_DIR` (where the model is; set by the installed launcher), `SAGHI_DATA_DIR` (data folder, default `~/Library/Application Support/Saghi`).
 
-### Get the model and the binary
+### Get the models and the binary
 
-The workflow does both by itself. By hand:
+The workflow does all of it by itself. By hand:
 
 ```bash
-# model (1.97 GB, sha256 f0fc615d...1ff4, pinned revision 715cbe09...)
+# PyTorch model: download CohereLabs/cohere-transcribe-arabic-07-2026 from Hugging Face (about 4 GB) into a folder
+# and point SAGHI_MODEL_SRC_DIR at it.
+# fast model (1.97 GB, sha256 f0fc615d...1ff4, pinned revision 715cbe09...)
 curl -L -o cohere-transcribe-arabic-07-2026-Q6_K.gguf \
   https://huggingface.co/handy-computer/cohere-transcribe-arabic-07-2026-gguf/resolve/715cbe09ca9b60fc1e497db1e4478fa9fcf4ac21/cohere-transcribe-arabic-07-2026-Q6_K.gguf
 # binary: transcribe.cpp commit adfc50210a3f026a655a3e19937d90ef2bf0728c
@@ -48,21 +51,22 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAK
   -DTRANSCRIBE_BUILD_TESTS=OFF -DTRANSCRIBE_BUILD_EXAMPLES=ON && cmake --build build --target transcribe-cli
 ```
 
-Then set the three variables above and run `python3 saghi-mac/packaging/build_bundle.py`. Use Python 3.12 (or any Python whose `pip` can reach PyPI).
+Then set the four variables above and run `python3 saghi-mac/packaging/build_bundle.py`. Use Python 3.12 (or any Python whose `pip` can reach PyPI).
 
 ## The GitHub workflow
 
 `.github/workflows/build-app.yml` is run by hand (Actions tab, "Run workflow", with a `version` input and a `publish` switch). With `publish` off (the default) it builds and tests everything and publishes nothing: use that for a dry run. On a `macos-15` Apple-silicon runner it:
 
-1. Builds `transcribe-cli` from transcribe.cpp at a pinned commit (static, Metal embedded, deployment target 13.0), and fails if it links anything outside `/usr/lib` and `/System/Library`.
-2. Downloads the Q6_K `.gguf` from Hugging Face at a pinned revision, verifies its sha256, and fetches the license texts.
-3. Runs `build_bundle.py`, which also writes `saghi/_version.py` into the bundle (the version, and the sha256 of `requirements-arm64.txt`).
-4. Smoke-tests: runs the installer (`SAGHI_NO_LAUNCH=1`, no login item), checks the app, that `saghi` imports with the right version, that the engine finds `transcribe-cli` and the `.gguf`, and that torch is absent; starts the local API headless and checks `/api/health`.
-5. Transcribes a spoken Arabic sentence (macOS `say`) with the installed engine.
-6. Zips the bundle, splits it into parts under 2 GB (GitHub's limit per file), makes the small code-only `Saghi-mac-app-v<version>.zip` (`saghi/` + `requirements-arm64.txt`), and writes `SHA256SUMS` (parts, full zip, app zip, installer).
-7. Only when `publish` is on: creates or updates the release `v<version>` with the parts, `Saghi-mac-app-v<version>.zip`, `SHA256SUMS`, `Install-Saghi-mac.command` and `Install-Saghi-mac.zip` (the same installer in a zip, which keeps its run permission).
+1. Downloads the PyTorch model from this repo's `model-v1` release (two `.part` files, `model-config.zip`, `SHA256SUMS`), checks each part and the joined `model.safetensors`, deleting each part once joined (the runner disk is small).
+2. Builds `transcribe-cli` from transcribe.cpp at a pinned commit (static, Metal embedded, deployment target 13.0), and fails if it links anything outside `/usr/lib` and `/System/Library`.
+3. Downloads the Q6_K `.gguf` from Hugging Face at a pinned revision, verifies its sha256, and fetches the license texts.
+4. Runs `build_bundle.py`, which also writes `saghi/_version.py` into the bundle (the version, and the sha256 of `requirements-arm64.txt`).
+5. Smoke-tests: runs the installer (`SAGHI_NO_LAUNCH=1`, no login item), checks the app, that `saghi` imports with the right version, that the engine finds `transcribe-cli` and the `.gguf`, that the PyTorch model is installed and torch imports; starts the local API headless and checks `/api/health`.
+6. Transcribes a spoken Arabic sentence (macOS `say`) with the installed engine.
+7. Zips the bundle (about 6.3 GB), splits it into 4 parts under 2 GB (GitHub's limit per file), makes the small code-only `Saghi-mac-app-v<version>.zip` (`saghi/` + `requirements-arm64.txt`), and writes `SHA256SUMS` (parts, full zip, app zip, installer).
+8. Only when `publish` is on: creates or updates the release `v<version>` with the parts, `Saghi-mac-app-v<version>.zip`, `SHA256SUMS`, `Install-Saghi-mac.command` and `Install-Saghi-mac.zip` (the same installer in a zip, which keeps its run permission).
 
-The in-app updater (`saghi/updater.py`) reads the newest `v<number>` release. If the release's `REQUIREMENTS_SHA256` matches the installed one, it swaps in `saghi/` from the app zip (a light update); otherwise it runs `Install-Saghi-mac.command` (a full update). It refuses any file that has no matching line in `SHA256SUMS`. To ship an update, run the workflow with a higher version number and `publish` on. Going from v0.2.x to v0.3.0 changes the requirements file, so it is a full update; the installer also removes the old 3.8 GB PyTorch model and the torch libraries.
+The in-app updater (`saghi/updater.py`) reads the newest `v<number>` release. If the release's `REQUIREMENTS_SHA256` matches the installed one, it swaps in `saghi/` from the app zip (a light update); otherwise it runs `Install-Saghi-mac.command` (a full update). It refuses any file that has no matching line in `SHA256SUMS`. To ship an update, run the workflow with a higher version number and `publish` on. Going from v0.3.0 to v0.3.1 changes the requirements file (torch comes back), so it is a full update that also installs the PyTorch model.
 
 The end-user installer `Install-Saghi-mac.command` downloads those parts with `curl` (32 parallel byte-range connections, because GitHub limits the speed of each single connection), verifies them, joins them and runs the bundled `install-saghi.command`.
 
@@ -85,4 +89,4 @@ Two tests run a real model inference and are skipped unless you provide the mode
 - `dev/test_dictation_flow.py`: needs `SAGHI_MODEL_DIR` (a PyTorch model folder that has `examples/sample1.wav`).
 - `dev/test_gui_filejob.py`: needs `SAGHI_MODEL_DIR` and `SAGHI_TEST_WAV` (a short Arabic WAV).
 
-The app itself no longer ships that PyTorch model; the PyTorch engine (`saghi/engine.py`, `SAGHI_ENGINE=pytorch`) stays for developer machines that have the model folder.
+From v0.3.1 the release ships both models: Saghi Fast (GGUF, default) and Saghi Full (PyTorch, `SAGHI_ENGINE=pytorch` or the Home page). The Full row in the Home page shows only when `model/model.safetensors` exists.
