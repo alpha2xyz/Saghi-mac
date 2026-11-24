@@ -43,7 +43,13 @@ _FILLER_EN = {"um", "umm", "uh", "uhh", "uhm", "erm", "err"}
 # repeated alef/heh-type characters, e.g. «اااا», «اااه». Not a substring
 # match -- the whole token (after stripping punctuation) must consist only
 # of these characters.
-_ELONGATED_RE = re.compile(r"^[اآأإه]{3,}$")  # ا آ أ إ ه
+# Also 2+ alef-maddas («آآ», «آآه»): the GGUF model writes this short
+# form, and it is never a real word.
+_ELONGATED_RE = re.compile(r"^(?:آ{2,}ه*|[اآأإه]{3,})$")  # ا آ أ إ ه
+
+# A one-letter prefix stretched with tatweel and left alone («فـ ما أدري»,
+# the "so..." before a hesitation): glue it back onto the next word.
+_STRETCHED_PREFIX_RE = re.compile(r"(?<!\S)([فوبلك])ـ+\s+(?=\S)")
 
 # Punctuation stripped off a token's edges before comparing it against the
 # filler sets above (so "um," or "،اه" still match). Stripped punctuation
@@ -130,6 +136,7 @@ def clean_transcript(text: str, level: str = "light") -> str:
         return text
 
     text = _strip_filler_words(text)
+    text = _STRETCHED_PREFIX_RE.sub(r"\1", text)
 
     if level == "medium":
         text = _collapse_duplicate_words(text)

@@ -63,6 +63,7 @@ needed here.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 from typing import Callable, Dict, FrozenSet, Optional, Tuple
 
@@ -352,6 +353,40 @@ def make_intercept(state: HotkeyStateMachine, get_vk: Callable[[object], int]):
     return _intercept
 
 
+def _listener_class(keyboard):
+    """
+    pynput's Listener, except on macOS: there its thread reads the keyboard
+    layout (TISCopyCurrentKeyboardInputSource / TSMGetInputSourceProperty)
+    when it starts, and recent macOS kills the app (SIGTRAP in
+    dispatch_assert_queue) when that runs off the main thread. Seen when the
+    owner picked the key left of 1 (vk:10): the listener restarted from
+    set_combo and Saghi quit. So read the layout here, on the caller's (main)
+    thread, and hand the listener that value.
+    """
+    if sys.platform != "darwin":
+        return keyboard.Listener
+    try:
+        from pynput._util.darwin import keycode_context
+
+        with keycode_context() as ctx:
+            context = ctx
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not read the keyboard layout on the main thread", exc_info=True)
+        return keyboard.Listener
+
+    base = keyboard.Listener
+
+    class _MainThreadLayoutListener(base):
+        def _run(self):
+            self._context = context
+            try:
+                super(base, self)._run()  # skip base._run's off-thread layout read
+            finally:
+                self._context = None
+
+    return _MainThreadLayoutListener
+
+
 class HotkeyListener:
     """
     Real global-hotkey listener: `pynput.keyboard.Listener` feeding a
@@ -426,7 +461,7 @@ class HotkeyListener:
                     # also reaches the focused app.
                     logger.warning("Quartz unavailable: the shortcut key will not be suppressed")
                     self._with_intercept = False
-            listener = keyboard.Listener(
+            listener = _listener_class(keyboard)(
                 on_press=self._state.handle_press,
                 on_release=self._state.handle_release,
                 **kwargs,

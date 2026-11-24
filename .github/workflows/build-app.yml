@@ -6,7 +6,7 @@ on:
       version:
         description: "Version to build and publish (release tag becomes v<version>)"
         required: true
-        default: "0.3.1"
+        default: "0.3.2"
       publish:
         description: "Publish the release (false = build and test only, nothing is published)"
         type: boolean
