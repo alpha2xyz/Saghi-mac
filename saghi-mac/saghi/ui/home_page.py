@@ -46,6 +46,12 @@ def compute_stats(entries_stats: dict) -> dict:
     return {"words": words, "spoken_s": spoken, "saved_s": max(0.0, typing_s - spoken)}
 
 
+def pytorch_available() -> bool:
+    from ..engines import pytorch_available as _pa
+
+    return _pa()
+
+
 def gguf_available(gguf_model: str = "") -> bool:
     """True when both the GGUF runner and a .gguf model file can be found."""
     try:
@@ -120,7 +126,8 @@ class HomePage(QWidget):
         super().__init__(parent)
         self._sm = settings_manager
         # The engine the running process was built with.
-        self._running_engine = settings_manager.current.engine
+        self._full_ok = pytorch_available()
+        self._running_engine = self._effective_engine(settings_manager.current)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -167,7 +174,10 @@ class HomePage(QWidget):
         self._group.addButton(self.full_radio)
         fast_row = self.model_card.add_row(strings.HOME_MODEL_FAST, self.fast_radio, strings.HOME_MODEL_FAST_HINT)
         self._fast_hint_label = fast_row.findChild(QLabel, "rowHint")
-        self.model_card.add_row(strings.HOME_MODEL_FULL, self.full_radio, strings.HOME_MODEL_FULL_HINT)
+        self._full_row = self.model_card.add_row(strings.HOME_MODEL_FULL, self.full_radio, strings.HOME_MODEL_FULL_HINT)
+        # Releases from 0.3.0 ship only the fast model; "Full" shows up only
+        # on a machine that still has the PyTorch model folder.
+        self._full_row.setVisible(self._full_ok)
 
         self.restart_note = widgets.label(strings.HOME_MODEL_RESTART_NOTE, "secondaryText")
         self.restart_btn = QPushButton(strings.HOME_MODEL_RESTART_BUTTON)
@@ -236,8 +246,11 @@ class HomePage(QWidget):
 
     # ---- model choice --------------------------------------------------------------
 
+    def _effective_engine(self, s) -> str:
+        return s.engine if self._full_ok else "gguf"
+
     def _sync_engine_controls(self, s) -> None:
-        want_fast = s.engine == "gguf"
+        want_fast = self._effective_engine(s) == "gguf"
         for radio, on in ((self.fast_radio, want_fast), (self.full_radio, not want_fast)):
             radio.blockSignals(True)
             radio.setChecked(on)
@@ -247,7 +260,7 @@ class HomePage(QWidget):
         if not self._gguf_ok:
             self.fast_radio.setToolTip(strings.HOME_MODEL_FAST_MISSING)
             self._fast_hint_label.setText(f"{strings.HOME_MODEL_FAST_HINT} ({strings.HOME_MODEL_FAST_MISSING})")
-        self.restart_row.setVisible(s.engine != self._running_engine)
+        self.restart_row.setVisible(self._effective_engine(s) != self._running_engine)
 
     def _on_choice(self, _checked: bool) -> None:
         self._sm.update(engine="gguf" if self.fast_radio.isChecked() else "pytorch")

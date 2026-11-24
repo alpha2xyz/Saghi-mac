@@ -4,8 +4,8 @@ Saghi-mac bundle builder.
 
 Assembles `packaging/output/Saghi-Mac-Portable/` -- a fully offline
 distributable folder for Apple Silicon Macs: a bundled arm64 Python, the
-pre-downloaded arm64 wheels, the saghi/ source, the model checkpoint, the
-installer script, docs, LaunchAgent template, and a MANIFEST.json with
+pre-downloaded arm64 wheels, the saghi/ source, the GGUF speech model and the
+transcribe-cli binary (transcribe.cpp), the installer script, docs, LaunchAgent template, and a MANIFEST.json with
 checksums.
 
 It downloads a prebuilt arm64 python-build-standalone CPython and downloads
@@ -20,11 +20,14 @@ the model copy -- verifies a checksum) before redoing the work, so a
 re-run after a partial failure only repeats what's missing.
 
 Usage:
-    SAGHI_MODEL_SRC_DIR=/path/to/model python3 packaging/build_bundle.py
+    SAGHI_GGUF_SRC=/path/model.gguf SAGHI_TRANSCRIBE_CLI=/path/transcribe-cli \\
+      SAGHI_GGUF_NOTICES_DIR=/path/notices python3 packaging/build_bundle.py
 
 Environment variables:
-    SAGHI_MODEL_SRC_DIR       Folder holding the model (model.safetensors + config
-                              files). Required unless saghi-mac/model/ exists.
+    SAGHI_GGUF_SRC            The Q6_K .gguf file (sha256 is checked against GGUF_SHA256).
+    SAGHI_TRANSCRIBE_CLI      The compiled transcribe-cli binary (arm64).
+    SAGHI_GGUF_NOTICES_DIR    Folder with the license texts shipped beside them:
+                              LICENSE + NOTICE (the model) and LICENSE-transcribe.cpp.
     SAGHI_PACKAGING_SCRATCH   Cache dir for big downloads (default: packaging/.cache).
     SAGHI_PACKAGING_PIP_PYTHON  Python whose pip runs `pip download` (default: the
                               Python running this script).
@@ -56,9 +59,14 @@ PROJECT_ROOT = PACKAGING_DIR.parent  # saghi-mac/
 SAGHI_SRC_DIR = PROJECT_ROOT / "saghi"
 REQUIREMENTS_ARM64 = PROJECT_ROOT / "dev" / "requirements-arm64.txt"
 
-# Model source folder: SAGHI_MODEL_SRC_DIR, else saghi-mac/model/ if it exists.
-_DEFAULT_MODEL_SRC_DIR = PROJECT_ROOT / "model"
-MODEL_SRC_DIR = Path(os.environ.get("SAGHI_MODEL_SRC_DIR") or _DEFAULT_MODEL_SRC_DIR)
+# The speech model: Q6_K GGUF of cohere-transcribe-arabic-07-2026
+# (handy-computer/cohere-transcribe-arabic-07-2026-gguf, Apache 2.0).
+GGUF_FILE = "cohere-transcribe-arabic-07-2026-Q6_K.gguf"
+GGUF_SHA256 = "f0fc615d27da3236166cd68cf9968c3be7d257b953bbba3b2e10e5d9f3fd1ff4"
+GGUF_SIZE = 1972524448
+GGUF_SRC = Path(os.environ["SAGHI_GGUF_SRC"]) if os.environ.get("SAGHI_GGUF_SRC") else None
+TRANSCRIBE_CLI_SRC = Path(os.environ["SAGHI_TRANSCRIBE_CLI"]) if os.environ.get("SAGHI_TRANSCRIBE_CLI") else None
+NOTICES_DIR = Path(os.environ["SAGHI_GGUF_NOTICES_DIR"]) if os.environ.get("SAGHI_GGUF_NOTICES_DIR") else None
 
 OUTPUT_DIR = PACKAGING_DIR / "output" / "Saghi-Mac-Portable"
 
@@ -314,48 +322,50 @@ def copy_saghi_source() -> None:
 
 
 # ---------------------------------------------------------------------------
-# stage 4: model checkpoint (read-only source -- copy, never modify)
+# stage 4: GGUF model + transcribe-cli (read-only sources -- copy, never modify)
 # ---------------------------------------------------------------------------
 
 
-def copy_model() -> tuple[str, str]:
-    dest = OUTPUT_DIR / "model"
-    src_weights = MODEL_SRC_DIR / "model.safetensors"
-    dest_weights = dest / "model.safetensors"
+def copy_gguf() -> tuple[str, str]:
+    """Copy the .gguf, the binary and the license texts; return (gguf sha256, cli sha256)."""
+    for name, src in (
+        ("SAGHI_GGUF_SRC", GGUF_SRC),
+        ("SAGHI_TRANSCRIBE_CLI", TRANSCRIBE_CLI_SRC),
+        ("SAGHI_GGUF_NOTICES_DIR", NOTICES_DIR),
+    ):
+        if src is None or not src.exists():
+            raise RuntimeError(f"{name} is not set or does not exist: {src}")
+    for lic in ("LICENSE", "NOTICE", "LICENSE-transcribe.cpp"):
+        if not (NOTICES_DIR / lic).is_file():
+            raise RuntimeError(f"license text missing: {NOTICES_DIR / lic}")
 
-    if not src_weights.exists():
-        raise RuntimeError(
-            f"source model missing: {src_weights}\n"
-            "Set SAGHI_MODEL_SRC_DIR to the folder that contains model.safetensors "
-            "(and the model's config/tokenizer files), e.g.\n"
-            "  SAGHI_MODEL_SRC_DIR=/path/to/cohere-transcribe-arabic-07-2026 python3 packaging/build_bundle.py"
-        )
+    log("[4/6] GGUF model + transcribe-cli ...")
+    if GGUF_SRC.stat().st_size != GGUF_SIZE:
+        raise RuntimeError(f"{GGUF_SRC} has size {GGUF_SRC.stat().st_size}, expected {GGUF_SIZE}")
+    src_hash = sha256_of(GGUF_SRC)
+    if src_hash != GGUF_SHA256:
+        raise RuntimeError(f"GGUF sha256 mismatch: got {src_hash}, expected {GGUF_SHA256}")
+    log(f"  source .gguf sha256 matches the pinned value ({src_hash[:12]}...).")
 
-    log("[4/6] Model checkpoint ...")
-    need_copy = True
-    if dest_weights.exists() and dest_weights.stat().st_size == src_weights.stat().st_size:
-        need_copy = False
-        log("  destination model.safetensors already present with matching size -- skipping copy "
-            "(checksum still verified below).")
+    model_dest = OUTPUT_DIR / "model-gguf"
+    if model_dest.exists():
+        shutil.rmtree(model_dest)
+    model_dest.mkdir(parents=True)
+    shutil.copy2(GGUF_SRC, model_dest / GGUF_FILE)
+    shutil.copy2(NOTICES_DIR / "LICENSE", model_dest / "LICENSE")
+    shutil.copy2(NOTICES_DIR / "NOTICE", model_dest / "NOTICE")
+    if sha256_of(model_dest / GGUF_FILE) != GGUF_SHA256:
+        raise RuntimeError("MODEL INTEGRITY CHECK FAILED: bundled .gguf differs from the source.")
+    log("  bundled .gguf copy verified.")
 
-    if need_copy:
-        log(f"  copying {MODEL_SRC_DIR} -> {dest} (~{human_size(src_weights.stat().st_size)}, this takes a while) ...")
-        copytree_clean(MODEL_SRC_DIR, dest)
-
-    log("  computing sha256 of source model.safetensors ...")
-    src_hash = sha256_of(src_weights)
-    log(f"  source:      {src_hash}")
-    log("  computing sha256 of bundled copy ...")
-    dest_hash = sha256_of(dest_weights)
-    log(f"  bundled copy: {dest_hash}")
-
-    if src_hash != dest_hash:
-        raise RuntimeError(
-            f"MODEL INTEGRITY CHECK FAILED: bundled model.safetensors sha256 does not match source.\n"
-            f"  source: {src_hash}\n  copy:   {dest_hash}"
-        )
-    log("  model integrity check PASSED (sha256 match).")
-    return src_hash, dest_hash
+    bin_dest = OUTPUT_DIR / "bin"
+    if bin_dest.exists():
+        shutil.rmtree(bin_dest)
+    bin_dest.mkdir(parents=True)
+    shutil.copy2(TRANSCRIBE_CLI_SRC, bin_dest / "transcribe-cli")
+    (bin_dest / "transcribe-cli").chmod(0o755)
+    shutil.copy2(NOTICES_DIR / "LICENSE-transcribe.cpp", bin_dest / "LICENSE-transcribe.cpp")
+    return GGUF_SHA256, sha256_of(bin_dest / "transcribe-cli")
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +393,7 @@ def copy_static_files() -> None:
 # ---------------------------------------------------------------------------
 
 
-def write_manifest(model_src_hash: str, model_dest_hash: str) -> None:
+def write_manifest(gguf_hash: str, cli_hash: str) -> None:
     log("[6/6] Writing MANIFEST.json ...")
 
     wheels_dir = OUTPUT_DIR / "wheels"
@@ -398,9 +408,8 @@ def write_manifest(model_src_hash: str, model_dest_hash: str) -> None:
             "min_macos": "13.0",
             "min_macos_note": (
                 "Set by PySide6 6.11.2's wheel tag (cp310-abi3-macosx_13_0_universal2), the "
-                "highest floor among every resolved wheel. torch is deliberately pinned to "
-                "2.11.0 (not PyPI-latest) to avoid silently raising this to macOS 14 -- see "
-                "dev/requirements-arm64.txt."
+                "highest floor among every resolved wheel. transcribe-cli is built with "
+                "MACOSX_DEPLOYMENT_TARGET=13.0 (see .github/workflows/build-app.yml)."
             ),
         },
         "python_runtime": {
@@ -420,10 +429,14 @@ def write_manifest(model_src_hash: str, model_dest_hash: str) -> None:
             "files": wheel_files,
         },
         "model": {
-            "source": "SAGHI_MODEL_SRC_DIR (folder contents copied as-is)",
-            "sha256_source": model_src_hash,
-            "sha256_bundled_copy": model_dest_hash,
-            "integrity_check": "PASSED" if model_src_hash == model_dest_hash else "FAILED",
+            "file": f"model-gguf/{GGUF_FILE}",
+            "source": "handy-computer/cohere-transcribe-arabic-07-2026-gguf (Apache 2.0)",
+            "sha256": gguf_hash,
+        },
+        "transcribe_cli": {
+            "file": "bin/transcribe-cli",
+            "source": "handy-computer/transcribe.cpp (MIT)",
+            "sha256": cli_hash,
         },
         "bundle_size_bytes": dir_size(OUTPUT_DIR),
     }
@@ -461,10 +474,10 @@ def main() -> int:
     stage_python_runtime()
     download_wheels()
     copy_saghi_source()
-    model_src_hash, model_dest_hash = copy_model()
+    gguf_hash, cli_hash = copy_gguf()
     copy_static_files()
     clean_ds_store()
-    write_manifest(model_src_hash, model_dest_hash)
+    write_manifest(gguf_hash, cli_hash)
 
     log("Done.")
     return 0

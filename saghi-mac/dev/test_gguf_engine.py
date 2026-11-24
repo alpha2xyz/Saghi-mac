@@ -87,17 +87,20 @@ ok(Vocabulary.load("/nonexistent/vocab.txt").rules == {}, "missing file -> no ru
 
 # ---- 4. settings + factory ----
 s = settings._coerce({"engine": "bogus", "gguf_model": 5})
-ok(s.engine == "pytorch" and s.gguf_model == "", "bad engine values fall back to defaults")
-ok(settings.Settings().engine == "pytorch", "default engine stays pytorch")
+ok(s.engine == "gguf" and s.gguf_model == "", "bad engine values fall back to defaults")
+ok(settings.Settings().engine == "gguf", "default engine is gguf")
 ok(settings._coerce({"engine": "gguf"}).engine == "gguf", "gguf accepted")
 os.environ.pop("SAGHI_ENGINE", None)
-ok(engine_choice() == "pytorch", "no env, default settings -> pytorch")
+ok(engine_choice() == "gguf", "no env, default settings -> gguf")
 ok(engine_choice("gguf") == "gguf", "explicit choice wins")
 os.environ["SAGHI_ENGINE"] = "gguf"
 ok(engine_choice() == "gguf", "SAGHI_ENGINE=gguf honoured")
 ok(isinstance(make_engine("/nowhere"), GgufEngine), "factory builds GgufEngine")
 os.environ.pop("SAGHI_ENGINE")
-ok(type(make_engine("/nowhere")).__name__ == "SaghiEngine", "factory builds SaghiEngine by default")
+ok(isinstance(make_engine("/nowhere"), GgufEngine), "factory builds GgufEngine by default")
+os.environ["SAGHI_ENGINE"] = "pytorch"
+ok(type(make_engine("/nowhere")).__name__ == "SaghiEngine", "SAGHI_ENGINE=pytorch still builds SaghiEngine")
+os.environ.pop("SAGHI_ENGINE")
 
 # ---- 5. engine against a fake transcribe-cli ----
 td = Path(tempfile.mkdtemp(prefix="saghi-fakecli-"))

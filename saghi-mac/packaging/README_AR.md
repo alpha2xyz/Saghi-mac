@@ -33,7 +33,7 @@
 
 ## التثبيت
 
-1. انسخ مجلد `Saghi-Mac-Portable` كاملًا إلى الجهاز (عبر AirDrop أو USB أو تنزيل). لا تنقل ملف `install-saghi.command` وحده -- مجلدات `python-runtime` و`wheels` و`saghi` و`model` ضرورية بجانبه.
+1. انسخ مجلد `Saghi-Mac-Portable` كاملًا إلى الجهاز (عبر AirDrop أو USB أو تنزيل). لا تنقل ملف `install-saghi.command` وحده -- مجلدات `python-runtime` و`wheels` و`saghi` و`model-gguf` و`bin` ضرورية بجانبه.
 2. **أول مرة فقط:** بما أن صاغي غير موقّع رقميًا (Unsigned)، سيمنع macOS تشغيله مباشرة عند النقر المزدوج. الطريقة تختلف حسب إصدار macOS:
    - **macOS 13 (Ventura) أو macOS 14 (Sonoma):** اضغط بزر الفأرة الأيمن (أو Control + نقرة) على `install-saghi.command`، اختر **Open**، ثم أكّد بالضغط على **Open** مرة أخرى في النافذة التي تظهر.
    - **macOS 15 (Sequoia) أو أحدث:** النقر بالزر الأيمن لم يعد يكفي. انقر مرتين على `install-saghi.command` (ستظهر رسالة منع)، ثم افتح **System Settings > Privacy & Security**، مرّر لأسفل حتى قسم **Security**، واضغط **Open Anyway** بجانب اسم الملف، ثم أكّد. هذا الخيار يظهر لمدة ساعة تقريبًا بعد محاولة التشغيل الفاشلة -- إذا اختفى، أعد النقر المزدوج على الملف لإظهاره مجددًا.
