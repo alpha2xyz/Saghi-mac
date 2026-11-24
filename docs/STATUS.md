@@ -2,6 +2,19 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-24 — Dock click did not open the window (owner's Mac, branch `claude/dock-reopen-shows-window`)
+**Area:** `saghi/ui/app.py` only.
+
+**Owner's report:** dictation works (after confirming the ctrl+cmd shortcut), but there is no menu-bar icon, Saghi shows in the Dock, and clicking it never opens the window, so Settings can't be reached.
+
+**Cause:** when Saghi is started from Saghi.app (not the login LaunchAgent), macOS registers the python process as the app. Opening Saghi.app again or clicking it in the Dock does not start a second copy (so `single_instance` never hears about it); macOS re-activates the running process and Qt ignored that. The menu-bar icon is gone by design since the notch redesign; the notch click still opens the window. Also seen: the earlier "no text" report was no real key press reaching Saghi after the shortcut changed to ctrl+cmd; a synthetic ctrl+cmd hold recorded and transcribed fine.
+
+**Fix:** `_install_reopen_handler` connects `QApplication.applicationStateChanged`; becoming active (Dock click, reopen, Cmd-Tab) shows the main window. A direct `NSAppleEventManager` 'rapp' handler was tried first and never fired.
+
+**Verified live on the owner's Mac:** patched file copied into the installed 0.3.0 bundle (backup outside the repo), Saghi restarted; `open Saghi.app` on the running app logs "Saghi activated" and the 680x588 window appears with Settings in the sidebar.
+
+**Next:** owner's yes, then merge; next release carries it. The installed bundle already has the patch.
+
 ## 2026-11-23 — notch UI redesign (owner's Mac, branch `claude/notch-ui`, from `claude/gguf-engine-v2` + `claude/idle-unload`)
 **Area:** `saghi/ui/notch.py` (new), `ui/dictation.py`, `hotkey.py`, `ui/sounds.py` + `ui/assets/sounds/`, `ui/mainwindow.py`, `ui/home_page.py` (new), `ui/settings_page.py`, `ui/app.py`, `history.py`.
 
