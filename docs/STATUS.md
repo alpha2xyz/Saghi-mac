@@ -23,7 +23,7 @@ Newest first. Every session adds an entry before it ends.
 - Fix: before pasting a live dictation, Saghi adds «.» when the take ends without punctuation («؟» when it opens with a question word such as هل/كيف/وش/ليش; "?" for English), then one trailing space. History keeps the text without the extra space. File jobs are unchanged.
 - Tests: test_finish_dictation 14/14, test_cleanup 20/20.
 - Owner's decision: the owner's name and other words NOT added to `vocabulary.txt` for now. The ط/ظ/ض/ص mix-ups come from the model; later option is the OpenRouter text polish.
-- Not done: not tried by voice in the installed app yet; needs a release (0.3.3) or an in-place update on the owner's Mac.
+- 2026-11-25: copied in place into the owner's installed Saghi.app (backup in `~/.saghi-work/backup-before-punct-2026-11-25/`), re-signed ad-hoc, restarted; app runs. Owner wants to batch more changes before the next release. Not yet tried by voice.
 
 ## 2026-11-24 - § key crash + «آآ» left in the text (owner's Mac, branch `claude/both-models`)
 **Area:** `saghi/hotkey.py`, `saghi/cleanup.py`, `dev/test_cleanup.py`.
