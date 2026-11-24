@@ -131,12 +131,36 @@ def find_cli(explicit: Optional[str] = None) -> Optional[Path]:
     return Path(found) if found else None
 
 
-def find_model(explicit: Optional[str] = None) -> Optional[Path]:
+GGUF_VARIANTS = ("fast", "full")
+_VARIANT_SUFFIX = {"fast": "Q6_K.gguf", "full": "Q8_0.gguf"}
+
+
+def _bundled_models() -> list[str]:
+    return sorted(glob.glob(str(_APP_RES / "model-gguf" / "*.gguf")))
+
+
+def variant_available(variant: str) -> bool:
+    """True when the bundled .gguf for this variant ("fast" = Q6_K, "full" = Q8_0) exists."""
+    suffix = _VARIANT_SUFFIX.get(variant)
+    return bool(suffix) and any(h.endswith(suffix) for h in _bundled_models())
+
+
+def find_model(explicit: Optional[str] = None, variant: Optional[str] = None) -> Optional[Path]:
     for cand in (explicit, os.environ.get("SAGHI_GGUF_MODEL")):
         if cand:
             return Path(cand).expanduser()
-    hits = sorted(glob.glob(str(_APP_RES / "model-gguf" / "*.gguf")))
-    return Path(hits[0]) if hits else None
+    hits = _bundled_models()
+    if not hits:
+        return None
+    wanted = _VARIANT_SUFFIX.get(variant or "fast", _VARIANT_SUFFIX["fast"])
+    for h in hits:
+        if h.endswith(wanted):
+            return Path(h)
+    # Wanted file missing: the other variant, else the first file.
+    for h in hits:
+        if any(h.endswith(s) for s in _VARIANT_SUFFIX.values()):
+            return Path(h)
+    return Path(hits[0])
 
 
 # ---- engine ---------------------------------------------------------------

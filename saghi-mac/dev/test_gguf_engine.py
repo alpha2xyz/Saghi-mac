@@ -102,6 +102,53 @@ os.environ["SAGHI_ENGINE"] = "pytorch"
 ok(type(make_engine("/nowhere")).__name__ == "SaghiEngine", "SAGHI_ENGINE=pytorch still builds SaghiEngine")
 os.environ.pop("SAGHI_ENGINE")
 
+# ---- 4b. variants: Fast = Q6_K, Full = Q8_0 ----
+from saghi import engines, gguf_engine  # noqa: E402
+
+ok(settings.Settings().gguf_variant == "fast", "default gguf_variant is fast")
+ok(settings._coerce({"gguf_variant": "full"}).gguf_variant == "full", "full accepted")
+ok(settings._coerce({"gguf_variant": "bogus"}).gguf_variant == "fast", "bad gguf_variant -> fast")
+ok(settings._coerce({"gguf_variant": 3}).gguf_variant == "fast", "non-string gguf_variant -> fast")
+
+_real_res = gguf_engine._APP_RES
+_real_pa = engines.pytorch_available
+os.environ.pop("SAGHI_GGUF_MODEL", None)
+with tempfile.TemporaryDirectory() as td:
+    res = Path(td)
+    (res / "model-gguf").mkdir()
+    gguf_engine._APP_RES = res
+    ok(gguf_engine.find_model() is None, "no bundled file -> None")
+    ok(not gguf_engine.variant_available("fast") and not gguf_engine.variant_available("full"), "nothing available")
+    q6 = res / "model-gguf" / "m-Q6_K.gguf"
+    q8 = res / "model-gguf" / "m-Q8_0.gguf"
+    q6.write_bytes(b"x")
+    ok(gguf_engine.find_model(variant="full") == q6, "Q8 missing -> falls back to the Q6 file")
+    ok(gguf_engine.variant_available("fast") and not gguf_engine.variant_available("full"), "only fast available")
+    q8.write_bytes(b"x")
+    ok(gguf_engine.find_model(variant="fast") == q6, "fast -> Q6_K")
+    ok(gguf_engine.find_model(variant="full") == q8, "full -> Q8_0")
+    ok(gguf_engine.find_model() == q6, "no variant -> fast (Q6_K)")
+    ok(gguf_engine.variant_available("full"), "full available with the Q8 file")
+    ok(gguf_engine.find_model("/x/own.gguf", "full") == Path("/x/own.gguf"), "explicit path wins over variant")
+    q6.unlink()
+    ok(gguf_engine.find_model(variant="fast") == q8, "Q6 missing -> falls back to the Q8 file")
+
+    # make_engine passes the variant from settings
+    q6.write_bytes(b"x")
+    engines.pytorch_available = lambda: False
+    settings.save(settings.Settings(engine="gguf", gguf_variant="full"))
+    ok(make_engine("/nowhere")._model_arg == str(q8), "factory: gguf_variant full -> Q8_0")
+    settings.save(settings.Settings(engine="gguf", gguf_variant="fast"))
+    ok(make_engine("/nowhere")._model_arg == str(q6), "factory: gguf_variant fast -> Q6_K")
+    settings.save(settings.Settings(engine="pytorch", gguf_variant="fast"))
+    ok(make_engine("/nowhere")._model_arg == str(q8), "factory: saved pytorch, no folder -> Full (Q8_0)")
+    ok(settings.load().engine == "pytorch", "migration does not rewrite the settings file")
+    settings.save(settings.Settings(engine="gguf", gguf_model="/x/own.gguf", gguf_variant="full"))
+    ok(make_engine("/nowhere")._model_arg == "/x/own.gguf", "factory: explicit gguf_model wins")
+    settings.save(settings.Settings())
+gguf_engine._APP_RES = _real_res
+engines.pytorch_available = _real_pa
+
 # ---- 5. engine against a fake transcribe-cli ----
 td = Path(tempfile.mkdtemp(prefix="saghi-fakecli-"))
 log = td / "calls.jsonl"

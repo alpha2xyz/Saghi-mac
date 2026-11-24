@@ -71,9 +71,16 @@ page):
                                     transcribe.cpp (gguf_engine.py); applies
                                     at the next launch. SAGHI_ENGINE overrides.
                                     "pytorch" needs a model folder that
-                                    releases from 0.3.0 no longer ship.
+                                    releases from 0.3.0 no longer ship
+                                    (developer machines only).
     gguf_model              str   default "" -- path to the .gguf file; ""
                                     = SAGHI_GGUF_MODEL or the bundled one
+    gguf_variant            str   "fast" | "full", default "fast" -- which
+                                    bundled GGUF: "fast" = Q6_K, "full" =
+                                    Q8_0 (gguf_engine.find_model); applies at
+                                    the next launch. A saved engine "pytorch"
+                                    with no PyTorch folder means "full"
+                                    (engines.model_choice).
 """
 
 from __future__ import annotations
@@ -101,6 +108,7 @@ VALID_HOTKEYS = ("ctrl+cmd", "alt+cmd", "shift+cmd", "ctrl+alt", "ctrl+shift")
 VALID_RETENTION_DAYS = (0, 7, 30, 90)
 VALID_PILL_MODES = ("always", "active")
 VALID_ENGINES = ("pytorch", "gguf")
+VALID_GGUF_VARIANTS = ("fast", "full")
 
 
 @dataclass
@@ -127,6 +135,7 @@ class Settings:
     floating_pill_pos: Optional[list] = None
     engine: str = "gguf"
     gguf_model: str = ""
+    gguf_variant: str = "fast"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -170,6 +179,8 @@ def _coerce(data: dict) -> Settings:
         s.engine = defaults.engine
     if not isinstance(s.gguf_model, str):
         s.gguf_model = defaults.gguf_model
+    if s.gguf_variant not in VALID_GGUF_VARIANTS:
+        s.gguf_variant = defaults.gguf_variant
     if not isinstance(s.last_update_check, str):
         s.last_update_check = defaults.last_update_check
     retention = s.history_retention_days

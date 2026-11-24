@@ -1,11 +1,13 @@
 """
-Engine factory: picks the GGUF engine (default, "Saghi Fast") or the
-PyTorch engine (developer machines that still have the 4 GB model folder).
+Engine factory: picks the GGUF engine (two bundled quants: "fast" = Q6_K,
+"full" = Q8_0, setting `gguf_variant`) or the PyTorch engine (developer
+machines that still have the 4 GB model folder; not offered in the UI).
 
 Choice order: explicit argument, then SAGHI_ENGINE, then the `engine`
 setting. A saved "pytorch" setting is honoured only when a PyTorch model
 folder exists; releases from 0.3.0 no longer ship it, so an updated install
-that saved "pytorch" before runs GGUF instead of failing (docs/GGUF_RESULTS.md).
+that saved "pytorch" before runs GGUF "full" (the closest to it) instead of
+failing (docs/GGUF_RESULTS.md).
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ def pytorch_model_dir() -> Path:
 
 
 def pytorch_available() -> bool:
-    """True when a PyTorch model folder is present (not shipped from 0.3.0)."""
+    """True when a PyTorch model folder is present (developer machines only)."""
     return (pytorch_model_dir() / "model.safetensors").is_file()
 
 
@@ -39,12 +41,28 @@ def engine_choice(choice: Optional[str] = None) -> str:
     return "pytorch" if str(choice).strip().lower() == "pytorch" else "gguf"
 
 
+def model_choice(s) -> str:
+    """What a settings object selects: "pytorch", "fast" or "full".
+
+    A saved engine "pytorch" without the PyTorch folder behaves as "full";
+    the file is not rewritten.
+    """
+    if str(s.engine).strip().lower() == "pytorch":
+        return "pytorch" if pytorch_available() else "full"
+    return s.gguf_variant if s.gguf_variant in ("fast", "full") else "fast"
+
+
 def make_engine(model_dir: Union[str, Path], choice: Optional[str] = None):
     if engine_choice(choice) == "gguf":
         from . import settings
         from .gguf_engine import GgufEngine
 
-        return GgufEngine(model_path=settings.load().gguf_model or None)
+        from .gguf_engine import find_model
+
+        s = settings.load()
+        variant = "full" if model_choice(s) in ("full", "pytorch") else "fast"
+        # An explicit gguf_model path wins, as before.
+        return GgufEngine(model_path=find_model(s.gguf_model or None, variant))
     from .engine import SaghiEngine
 
     return SaghiEngine(model_dir)
