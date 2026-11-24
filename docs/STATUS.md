@@ -2,6 +2,13 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-24 - v0.3.0 published and verified
+
+- Released v0.3.0 (publish run on main). Assets: installer, light update zip, bundle parts (2.02 GB total), SHA256SUMS.
+- The updater (`updater.check('0.2.1')`) sees v0.3.0.
+- Fresh install on the owner's Mac from the release: app version 0.3.0, engine gguf, installed size 2.4 GB, no PyTorch model. A generated Arabic sentence transcribed correctly.
+- Next: owner tries real dictation by voice; watch for first-run feedback.
+
 ## 2026-11-24 — v0.3.0: Saghi Fast ships in the release (branch `claude/release-0.3.0`, from `main` 3e71352)
 **Area:** `.github/workflows/build-app.yml`, `packaging/` (build_bundle, installer), `dev/requirements-arm64.txt`, `saghi/engines.py`, `settings.py`, `ui/home_page.py`, notices, docs.
 
