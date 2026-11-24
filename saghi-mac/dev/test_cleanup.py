@@ -129,6 +129,24 @@ CASES = [
         "medium",
         "يعني whatever",
     ),
+    (
+        "light: removes the short GGUF hesitation «آآ» / «آآه»",
+        "بشكل مفصل و آآ وشامل آآه لكن",
+        "light",
+        "بشكل مفصل و وشامل لكن",
+    ),
+    (
+        "medium: stretched «فـ» before a hesitation glues onto the next word",
+        "المصطلحات فـ آآ آآه ما أدري",
+        "medium",
+        "المصطلحات فما أدري",
+    ),
+    (
+        "light: a real word starting with آ is kept",
+        "آمل أن ينجح",
+        "light",
+        "آمل أن ينجح",
+    ),
 ]
 
 

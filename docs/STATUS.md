@@ -2,6 +2,14 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-24 - § key crash + «آآ» left in the text (owner's Mac, branch `claude/both-models`)
+**Area:** `saghi/hotkey.py`, `saghi/cleanup.py`, `dev/test_cleanup.py`.
+
+- **Crash:** choosing the key left of 1 (vk:10) as the shortcut quit Saghi; reopening worked. Three crash reports (SIGTRAP, `dispatch_assert_queue` in `TSMGetInputSourceProperty`): pynput's listener thread reads the keyboard layout when it starts, and recent macOS kills the app when that runs off the main thread. It hit when the listener restarted from `set_combo` (modifier-only -> key combo). Fix: `_listener_class` reads the layout on the caller's (main) thread and gives it to the listener. Hotkey tests pass; a start/switch/stop cycle runs clean. The crash itself is not reproducible on demand, so the owner must confirm by setting the § key again.
+- **Fillers:** the GGUF model writes the short «آآ» (2 letters), which the 3+ rule missed, and leaves «فـ» before it. Cleanup now drops «آآ»/«آآه» and glues a lone «فـ»/«وـ» onto the next word. 20/20 cleanup tests.
+- Also seen in history: «(تحذير حرق)» and «@@@فراغ» on near-silent clips (model hallucination, not handled yet).
+- Next: ships with 0.3.1.
+
 ## 2026-11-24 - v0.3.0 published and verified
 
 - Released v0.3.0 (publish run on main). Assets: installer, light update zip, bundle parts (2.02 GB total), SHA256SUMS.
