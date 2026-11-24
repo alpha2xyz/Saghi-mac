@@ -260,6 +260,26 @@ def _activate_app() -> None:
         logger.debug("Could not activate the app", exc_info=True)
 
 
+def _install_reopen_handler(app, show: Callable[[], None]) -> None:
+    """
+    macOS: show the window when the user clicks Saghi in the Dock, opens
+    Saghi.app while it is already running, or switches to it with Cmd-Tab.
+    When this process was started from Saghi.app, macOS does not launch a
+    second copy (so single_instance never hears about it); it re-activates
+    this process instead. Qt reports that (Dock reopen included) as the app
+    becoming active.
+    """
+    if sys.platform != "darwin" or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        return
+
+    def _on_state(state) -> None:
+        if state == Qt.ApplicationState.ApplicationActive:
+            logger.info("Saghi activated (Dock click / reopen): showing the window")
+            show()
+
+    app.applicationStateChanged.connect(_on_state)
+
+
 def _apply_startup_settings(settings_manager: SettingsManager) -> None:
     """
     Settings that act on the system rather than on a widget:
@@ -297,6 +317,7 @@ def main(argv: Optional[list] = None) -> int:
         return 0
     ctx = build(argv)
     instance_server = single_instance.listen(ctx.show_main_window)  # noqa: F841 (kept alive)
+    _install_reopen_handler(ctx.app, ctx.show_main_window)
     # Heartbeat from the UI thread; a stall >5s logs every thread's stack
     # to saghi.log (see diagnostics.py) -- the evidence a freeze needs.
     watchdog = diagnostics.FreezeWatchdog()
