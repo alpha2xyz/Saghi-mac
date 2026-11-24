@@ -7,9 +7,9 @@ Saghi-mac's own code is MIT licensed (see [LICENSE](LICENSE)). It uses and ships
 | Component | License | Link |
 |---|---|---|
 | cohere-transcribe-arabic-07-2026 (CohereLabs), original model | Apache 2.0 | https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026 |
-| cohere-transcribe-arabic-07-2026-Q6_K.gguf: a quantized (6-bit) conversion of that model made by handy-computer | Apache 2.0 | https://huggingface.co/handy-computer/cohere-transcribe-arabic-07-2026-gguf |
+| cohere-transcribe-arabic-07-2026-Q6_K.gguf ("Fast") and cohere-transcribe-arabic-07-2026-Q8_0.gguf ("Full"): quantized (6-bit and 8-bit) conversions of that model made by handy-computer | Apache 2.0 | https://huggingface.co/handy-computer/cohere-transcribe-arabic-07-2026-gguf |
 
-Since v0.3.0 the app ships the Q6_K GGUF file, a third-party quantized derivative of the CohereLabs model. Saghi-mac itself does not modify it: the file is bundled byte for byte (the build checks its sha256) in the app's `model-gguf/` folder, next to the `LICENSE` and `NOTICE` files of the GGUF repository. The release build fetches it from the GGUF repository at a pinned revision.
+Since v0.3.1 the app ships two GGUF files (Q6_K and Q8_0), third-party quantized derivatives of the CohereLabs model; the user picks one in the Home page. Saghi-mac itself does not modify them: the files are bundled byte for byte (the build checks each sha256) in the app's `model-gguf/` folder, next to the `LICENSE` and `NOTICE` files of the GGUF repository. The release build fetches it from the GGUF repository at a pinned revision.
 
 ## Speech engine
 

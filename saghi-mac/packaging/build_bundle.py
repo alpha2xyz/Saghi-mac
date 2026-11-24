@@ -24,7 +24,8 @@ Usage:
       SAGHI_GGUF_NOTICES_DIR=/path/notices python3 packaging/build_bundle.py
 
 Environment variables:
-    SAGHI_GGUF_SRC            The Q6_K .gguf file (sha256 is checked against GGUF_SHA256).
+    SAGHI_GGUF_SRC            The Q6_K .gguf file, "Fast" (size + sha256 checked against the pins).
+    SAGHI_GGUF_FULL_SRC       The Q8_0 .gguf file, "Full" (size + sha256 checked against the pins).
     SAGHI_TRANSCRIBE_CLI      The compiled transcribe-cli binary (arm64).
     SAGHI_GGUF_NOTICES_DIR    Folder with the license texts shipped beside them:
                               LICENSE + NOTICE (the model) and LICENSE-transcribe.cpp.
@@ -59,12 +60,17 @@ PROJECT_ROOT = PACKAGING_DIR.parent  # saghi-mac/
 SAGHI_SRC_DIR = PROJECT_ROOT / "saghi"
 REQUIREMENTS_ARM64 = PROJECT_ROOT / "dev" / "requirements-arm64.txt"
 
-# The speech model: Q6_K GGUF of cohere-transcribe-arabic-07-2026
-# (handy-computer/cohere-transcribe-arabic-07-2026-gguf, Apache 2.0).
+# The speech models: two GGUF quants of cohere-transcribe-arabic-07-2026
+# (handy-computer/cohere-transcribe-arabic-07-2026-gguf, Apache 2.0):
+# Q6_K = "Fast" (default), Q8_0 = "Full".
 GGUF_FILE = "cohere-transcribe-arabic-07-2026-Q6_K.gguf"
 GGUF_SHA256 = "f0fc615d27da3236166cd68cf9968c3be7d257b953bbba3b2e10e5d9f3fd1ff4"
 GGUF_SIZE = 1972524448
 GGUF_SRC = Path(os.environ["SAGHI_GGUF_SRC"]) if os.environ.get("SAGHI_GGUF_SRC") else None
+GGUF_FULL_FILE = "cohere-transcribe-arabic-07-2026-Q8_0.gguf"
+GGUF_FULL_SHA256 = "910de5c9c57f9fd8a280e1701f9cd96f63768878c1ca9e4ecf23638a5e0fef16"
+GGUF_FULL_SIZE = 2410655136
+GGUF_FULL_SRC = Path(os.environ["SAGHI_GGUF_FULL_SRC"]) if os.environ.get("SAGHI_GGUF_FULL_SRC") else None
 TRANSCRIBE_CLI_SRC = Path(os.environ["SAGHI_TRANSCRIBE_CLI"]) if os.environ.get("SAGHI_TRANSCRIBE_CLI") else None
 NOTICES_DIR = Path(os.environ["SAGHI_GGUF_NOTICES_DIR"]) if os.environ.get("SAGHI_GGUF_NOTICES_DIR") else None
 
@@ -326,10 +332,11 @@ def copy_saghi_source() -> None:
 # ---------------------------------------------------------------------------
 
 
-def copy_gguf() -> tuple[str, str]:
-    """Copy the .gguf, the binary and the license texts; return (gguf sha256, cli sha256)."""
+def copy_gguf() -> tuple[dict[str, str], str]:
+    """Copy both .gguf files, the binary and the license texts; return ({file: sha256}, cli sha256)."""
     for name, src in (
         ("SAGHI_GGUF_SRC", GGUF_SRC),
+        ("SAGHI_GGUF_FULL_SRC", GGUF_FULL_SRC),
         ("SAGHI_TRANSCRIBE_CLI", TRANSCRIBE_CLI_SRC),
         ("SAGHI_GGUF_NOTICES_DIR", NOTICES_DIR),
     ):
@@ -340,23 +347,29 @@ def copy_gguf() -> tuple[str, str]:
             raise RuntimeError(f"license text missing: {NOTICES_DIR / lic}")
 
     log("[4/6] GGUF model + transcribe-cli ...")
-    if GGUF_SRC.stat().st_size != GGUF_SIZE:
-        raise RuntimeError(f"{GGUF_SRC} has size {GGUF_SRC.stat().st_size}, expected {GGUF_SIZE}")
-    src_hash = sha256_of(GGUF_SRC)
-    if src_hash != GGUF_SHA256:
-        raise RuntimeError(f"GGUF sha256 mismatch: got {src_hash}, expected {GGUF_SHA256}")
-    log(f"  source .gguf sha256 matches the pinned value ({src_hash[:12]}...).")
+    models = (
+        (GGUF_SRC, GGUF_FILE, GGUF_SIZE, GGUF_SHA256),
+        (GGUF_FULL_SRC, GGUF_FULL_FILE, GGUF_FULL_SIZE, GGUF_FULL_SHA256),
+    )
+    for src, fname, size, sha in models:
+        if src.stat().st_size != size:
+            raise RuntimeError(f"{src} has size {src.stat().st_size}, expected {size}")
+        src_hash = sha256_of(src)
+        if src_hash != sha:
+            raise RuntimeError(f"{fname} sha256 mismatch: got {src_hash}, expected {sha}")
+        log(f"  source {fname} sha256 matches the pinned value ({src_hash[:12]}...).")
 
     model_dest = OUTPUT_DIR / "model-gguf"
     if model_dest.exists():
         shutil.rmtree(model_dest)
     model_dest.mkdir(parents=True)
-    shutil.copy2(GGUF_SRC, model_dest / GGUF_FILE)
+    for src, fname, _size, sha in models:
+        shutil.copy2(src, model_dest / fname)
+        if sha256_of(model_dest / fname) != sha:
+            raise RuntimeError(f"MODEL INTEGRITY CHECK FAILED: bundled {fname} differs from the source.")
+        log(f"  bundled {fname} copy verified.")
     shutil.copy2(NOTICES_DIR / "LICENSE", model_dest / "LICENSE")
     shutil.copy2(NOTICES_DIR / "NOTICE", model_dest / "NOTICE")
-    if sha256_of(model_dest / GGUF_FILE) != GGUF_SHA256:
-        raise RuntimeError("MODEL INTEGRITY CHECK FAILED: bundled .gguf differs from the source.")
-    log("  bundled .gguf copy verified.")
 
     bin_dest = OUTPUT_DIR / "bin"
     if bin_dest.exists():
@@ -365,7 +378,7 @@ def copy_gguf() -> tuple[str, str]:
     shutil.copy2(TRANSCRIBE_CLI_SRC, bin_dest / "transcribe-cli")
     (bin_dest / "transcribe-cli").chmod(0o755)
     shutil.copy2(NOTICES_DIR / "LICENSE-transcribe.cpp", bin_dest / "LICENSE-transcribe.cpp")
-    return GGUF_SHA256, sha256_of(bin_dest / "transcribe-cli")
+    return {GGUF_FILE: GGUF_SHA256, GGUF_FULL_FILE: GGUF_FULL_SHA256}, sha256_of(bin_dest / "transcribe-cli")
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +406,7 @@ def copy_static_files() -> None:
 # ---------------------------------------------------------------------------
 
 
-def write_manifest(gguf_hash: str, cli_hash: str) -> None:
+def write_manifest(gguf_hashes: dict[str, str], cli_hash: str) -> None:
     log("[6/6] Writing MANIFEST.json ...")
 
     wheels_dir = OUTPUT_DIR / "wheels"
@@ -428,11 +441,15 @@ def write_manifest(gguf_hash: str, cli_hash: str) -> None:
             "python_version_used_for_resolution": PIP_PYTHON_VERSION,
             "files": wheel_files,
         },
-        "model": {
-            "file": f"model-gguf/{GGUF_FILE}",
-            "source": "handy-computer/cohere-transcribe-arabic-07-2026-gguf (Apache 2.0)",
-            "sha256": gguf_hash,
-        },
+        "models": [
+            {
+                "variant": variant,
+                "file": f"model-gguf/{fname}",
+                "source": "handy-computer/cohere-transcribe-arabic-07-2026-gguf (Apache 2.0)",
+                "sha256": gguf_hashes[fname],
+            }
+            for variant, fname in (("fast", GGUF_FILE), ("full", GGUF_FULL_FILE))
+        ],
         "transcribe_cli": {
             "file": "bin/transcribe-cli",
             "source": "handy-computer/transcribe.cpp (MIT)",
@@ -474,10 +491,10 @@ def main() -> int:
     stage_python_runtime()
     download_wheels()
     copy_saghi_source()
-    gguf_hash, cli_hash = copy_gguf()
+    gguf_hashes, cli_hash = copy_gguf()
     copy_static_files()
     clean_ds_store()
-    write_manifest(gguf_hash, cli_hash)
+    write_manifest(gguf_hashes, cli_hash)
 
     log("Done.")
     return 0

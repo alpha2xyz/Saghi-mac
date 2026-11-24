@@ -20,6 +20,18 @@ Newest first. Every session adds an entry before it ends.
 
 **Not done / next:** the CI runner has no Arabic voice, so no transcription check ran there (fixed the voice match, may still skip). Release (publish on), then verify the in-app updater and a fresh install on the owner's Mac. The owner's Mac still runs from the repo source and has the trial install: reinstall or restore the LaunchAgent before the updater check.
 
+## 2026-11-24 — 0.3.1 prepared: two GGUF models + Dock fix (owner's Mac, branch `claude/both-models`)
+**Area:** `saghi/ui/app.py`, `settings.py`, `gguf_engine.py`, `engines.py`, `ui/home_page.py`, `ui/strings.py`, packaging, workflow, docs.
+
+**Owner's reports and decisions:**
+- "No text" was no real key press reaching Saghi after the shortcut changed to ctrl+cmd; a synthetic ctrl+cmd hold recorded and transcribed fine.
+- Dock icon did nothing: when Saghi is started from Saghi.app, re-opening it re-activates the running process instead of starting a second copy, so `single_instance` never fired. Fix: `_install_reopen_handler` shows the window on `applicationStateChanged(Active)`, but only while dictation is idle and NSApp is really active (Qt reported "active" once when the notch island appeared mid-dictation, which popped the window and would have stolen the paste).
+- Owner wants the model choice back. A first try shipped PyTorch beside GGUF (bundle ~6.3 GB; its dry-run build failed); reverted. Owner chose instead: «صاغي السريع» = Q6_K (default), «صاغي الكامل» = Q8_0, both GGUF via transcribe-cli, no torch (the 2026-11-18 measurements show every quant matching or beating PyTorch WER). New setting `gguf_variant`; a saved engine "pytorch" without the PyTorch folder runs Full; choosing a model clears an old explicit `gguf_model` path.
+
+**Verified:** dry-run workflow (publish off) passed, bundle 4.3 GB. On the owner's Mac the installed 0.3.0 bundle was updated in place (new `saghi/`, Q8_0 cloned into `model-gguf/`, version 0.3.1, re-signed ad-hoc; backup in `~/.saghi-work/backup-before-0.3.1/`): Home page shows both models; dictation on Q8_0 and on Q6_K transcribes; two dictations with Finder in front left Finder in front; re-opening Saghi.app shows the window. Tests: test_gguf_engine 59, test_home_page 49, test_new_options 114, test_gui_smoke 123, test_status_ui 161 pass.
+
+**Next:** owner's yes, then merge and publish 0.3.1 (workflow with publish on). Branch `claude/dock-reopen-shows-window` is superseded by this one.
+
 ## 2026-11-23 — notch UI redesign (owner's Mac, branch `claude/notch-ui`, from `claude/gguf-engine-v2` + `claude/idle-unload`)
 **Area:** `saghi/ui/notch.py` (new), `ui/dictation.py`, `hotkey.py`, `ui/sounds.py` + `ui/assets/sounds/`, `ui/mainwindow.py`, `ui/home_page.py` (new), `ui/settings_page.py`, `ui/app.py`, `history.py`.
 

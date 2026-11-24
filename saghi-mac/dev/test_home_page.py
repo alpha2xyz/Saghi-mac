@@ -108,47 +108,58 @@ check("§" in page.hotkey_cap.text(), "a custom single-key hotkey shows on the k
 sm.update(hotkey="alt_r")
 check("Right" in page.hotkey_cap.text() and "⌥" in page.hotkey_cap.text(), "a right-side modifier shows on the key-cap")
 
-# engine choice
+# engine choice: two GGUF variants, Fast = Q6_K, Full = Q8_0
+from saghi import engines
+_real_pa = engines.pytorch_available
+engines.pytorch_available = lambda: False
 home_page.gguf_available = lambda gguf_model="": True
-home_page.pytorch_available = lambda: True  # a dev machine that still has the PyTorch model
-sm.update(engine="pytorch")
+home_page.full_available = lambda: True
+sm.update(engine="gguf", gguf_variant="fast")
 page = HomePage(sm)
-check(not page._full_row.isHidden(), "the full model is offered when its model folder exists")
-check(page.full_radio.isChecked() and not page.fast_radio.isChecked(), "starts on the full model (default engine)")
+check(not page._full_row.isHidden(), "the Full row shows when the Q8 file is available")
+check(page.fast_radio.isChecked() and not page.full_radio.isChecked(), "starts on Fast (default variant)")
 check(page.restart_row.isHidden(), "no restart note before a change")
 restarts = []
 page.restart_requested.connect(lambda: restarts.append(1))
-page.fast_radio.setChecked(True)
-check(sm.current.engine == "gguf", "choosing the fast model writes engine=gguf")
-check(not page.restart_row.isHidden(), "restart note appears after a change")
+page.full_radio.setChecked(True)
+check(sm.current.engine == "gguf" and sm.current.gguf_variant == "full", "choosing Full writes gguf_variant=full (engine gguf)")
+check(not page.restart_row.isHidden(), "restart note appears when the variant differs from the running one")
 page.restart_btn.click()
 check(restarts == [1], "the restart button emits restart_requested")
-page.full_radio.setChecked(True)
-check(sm.current.engine == "pytorch" and page.restart_row.isHidden(), "going back clears the note")
+page.fast_radio.setChecked(True)
+check(sm.current.gguf_variant == "fast" and page.restart_row.isHidden(), "going back to Fast clears the note")
 
-# Releases from 0.3.0 ship only the fast model: a saved "pytorch" runs as fast, no Full row.
-home_page.pytorch_available = lambda: False
+# Migration: a saved engine "pytorch" without the PyTorch folder behaves as Full.
+sm.update(engine="pytorch", gguf_variant="fast")
+check(engines.model_choice(sm.current) == "full", "saved pytorch without folder -> model_choice full")
 page = HomePage(sm)
-check(page._full_row.isHidden(), "no full-model row without the PyTorch model folder")
-check(page.fast_radio.isChecked() and page.restart_row.isHidden(), "a saved pytorch choice shows as fast, no restart note")
+check(page.full_radio.isChecked() and page.restart_row.isHidden(), "...the page shows Full, no restart note")
+check(sm.current.engine == "pytorch", "...and the settings file is not rewritten")
 
-from saghi import engines
+# Without the Q8 file there is no Full row and Fast is checked.
+home_page.full_available = lambda: False
+page = HomePage(sm)
+check(page._full_row.isHidden(), "no Full row without the Q8 file")
+check(page.fast_radio.isChecked(), "...Fast is checked")
+
 _old_env = os.environ.pop("SAGHI_ENGINE", None)
-_real_pa = engines.pytorch_available
-engines.pytorch_available = lambda: False
 check(engines.engine_choice() == "gguf", "saved pytorch with no model folder resolves to gguf")
 engines.pytorch_available = lambda: True
 check(engines.engine_choice() == "pytorch", "saved pytorch with a model folder stays pytorch")
+check(engines.model_choice(sm.current) == "pytorch", "...model_choice pytorch on a dev machine")
 check(engines.engine_choice("gguf") == "gguf", "an explicit choice wins")
 engines.pytorch_available = _real_pa
 if _old_env is not None:
     os.environ["SAGHI_ENGINE"] = _old_env
 
 home_page.gguf_available = lambda gguf_model="": False
-home_page.pytorch_available = lambda: True
-sm.update(engine="pytorch")
+home_page.full_available = lambda: True
+sm.update(engine="gguf", gguf_variant="fast")
 page = HomePage(sm)
-check(not page.fast_radio.isEnabled(), "the fast model is disabled when no GGUF model/runner exists")
+check(page.fast_radio.isEnabled(), "Fast stays usable when it is the saved choice")
+sm.update(gguf_variant="full")
+page = HomePage(sm)
+check(not page.fast_radio.isEnabled(), "Fast is disabled when no GGUF model/runner exists and it is not chosen")
 check(strings.HOME_MODEL_FAST_MISSING in page._fast_hint_label.text(), "...with a hint")
 
 print(f"\nALL PASSED ({_checks} checks)")

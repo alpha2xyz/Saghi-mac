@@ -4,7 +4,8 @@ Home page: three usage stats, how to dictate, and which model to use.
 Stats come from history.stats() (words and recording time) and are shown as
 compact Arabic durations. Typing-time saved assumes 40 words per minute.
 
-The model choice writes settings.engine; the engine is built once at
+The model choice writes settings.engine ("gguf") and settings.gguf_variant
+("fast" = Q6_K, "full" = Q8_0); the engine is built once at
 start-up, so a change only applies after a restart, and the page then shows
 an inline note with a "restart now" button (signal `restart_requested`,
 handled by ui/app.py, which quits and relaunches Saghi).
@@ -46,10 +47,21 @@ def compute_stats(entries_stats: dict) -> dict:
     return {"words": words, "spoken_s": spoken, "saved_s": max(0.0, typing_s - spoken)}
 
 
-def pytorch_available() -> bool:
-    from ..engines import pytorch_available as _pa
+def full_available() -> bool:
+    """True when the bundled Q8_0 ("Full") file is present."""
+    try:
+        from .. import gguf_engine
 
-    return _pa()
+        return gguf_engine.variant_available("full")
+    except Exception:  # noqa: BLE001 -- availability is a hint; never break the page
+        logger.debug("Full model availability check failed", exc_info=True)
+        return False
+
+
+def model_choice(s) -> str:
+    from ..engines import model_choice as _mc
+
+    return _mc(s)
 
 
 def gguf_available(gguf_model: str = "") -> bool:
@@ -125,9 +137,9 @@ class HomePage(QWidget):
     def __init__(self, settings_manager, parent=None) -> None:
         super().__init__(parent)
         self._sm = settings_manager
-        # The engine the running process was built with.
-        self._full_ok = pytorch_available()
-        self._running_engine = self._effective_engine(settings_manager.current)
+        # The model the running process was built with.
+        self._full_ok = full_available()
+        self._running_engine = model_choice(settings_manager.current)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -175,8 +187,7 @@ class HomePage(QWidget):
         fast_row = self.model_card.add_row(strings.HOME_MODEL_FAST, self.fast_radio, strings.HOME_MODEL_FAST_HINT)
         self._fast_hint_label = fast_row.findChild(QLabel, "rowHint")
         self._full_row = self.model_card.add_row(strings.HOME_MODEL_FULL, self.full_radio, strings.HOME_MODEL_FULL_HINT)
-        # Releases from 0.3.0 ship only the fast model; "Full" shows up only
-        # on a machine that still has the PyTorch model folder.
+        # "Full" (Q8_0) shows up when that file is bundled.
         self._full_row.setVisible(self._full_ok)
 
         self.restart_note = widgets.label(strings.HOME_MODEL_RESTART_NOTE, "secondaryText")
@@ -246,24 +257,26 @@ class HomePage(QWidget):
 
     # ---- model choice --------------------------------------------------------------
 
-    def _effective_engine(self, s) -> str:
-        return s.engine if self._full_ok else "gguf"
-
     def _sync_engine_controls(self, s) -> None:
-        want_fast = self._effective_engine(s) == "gguf"
-        for radio, on in ((self.fast_radio, want_fast), (self.full_radio, not want_fast)):
-            radio.blockSignals(True)
-            radio.setChecked(on)
-            radio.blockSignals(False)
+        want_fast = model_choice(s) == "fast" or not self._full_ok
+        # Block both radios for the whole update: the exclusive group toggles
+        # the other one, and that must not write settings back.
+        self.fast_radio.blockSignals(True)
+        self.full_radio.blockSignals(True)
+        self.fast_radio.setChecked(want_fast)
+        self.full_radio.setChecked(not want_fast)
+        self.fast_radio.blockSignals(False)
+        self.full_radio.blockSignals(False)
         # Keep it usable when it is already the saved choice.
         self.fast_radio.setEnabled(self._gguf_ok or want_fast)
         if not self._gguf_ok:
             self.fast_radio.setToolTip(strings.HOME_MODEL_FAST_MISSING)
             self._fast_hint_label.setText(f"{strings.HOME_MODEL_FAST_HINT} ({strings.HOME_MODEL_FAST_MISSING})")
-        self.restart_row.setVisible(self._effective_engine(s) != self._running_engine)
+        self.restart_row.setVisible(model_choice(s) != self._running_engine)
 
     def _on_choice(self, _checked: bool) -> None:
-        self._sm.update(engine="gguf" if self.fast_radio.isChecked() else "pytorch")
+        # An old explicit gguf_model path (trial installs) would override the choice: clear it.
+        self._sm.update(engine="gguf", gguf_model="", gguf_variant="fast" if self.fast_radio.isChecked() else "full")
 
     def _on_settings_changed(self, s) -> None:
         try:

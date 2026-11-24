@@ -51,7 +51,7 @@ fi
 GGUF_SRC_FILE="$(ls "$BUNDLE_DIR"/model-gguf/*.gguf 2>/dev/null | head -n 1 || true)"
 if [ -z "$GGUF_SRC_FILE" ] || [ ! -x "$BUNDLE_DIR/bin/transcribe-cli" ]; then
   say "خطأ: مجلد model-gguf أو bin غير مكتمل بجانب هذا الملف."
-  say "تأكد من نسخ مجلد Saghi-Mac-Portable كاملًا (النموذج ~2GB)."
+  say "تأكد من نسخ مجلد Saghi-Mac-Portable كاملًا (النموذجان ~4.4GB)."
   exit 1
 fi
 if [ ! -d "$BUNDLE_DIR/saghi" ] || [ ! -f "$BUNDLE_DIR/requirements-arm64.txt" ] || [ ! -d "$BUNDLE_DIR/wheels" ]; then
@@ -91,7 +91,7 @@ if [ -f "$BUNDLE_DIR/AppIcon.icns" ]; then
   cp "$BUNDLE_DIR/AppIcon.icns" "$RES_DIR/AppIcon.icns"
 fi
 
-say "   - نسخ النموذج المحلي (~2GB، قد يستغرق دقيقة)..."
+say "   - نسخ النموذجين المحليين (~4.4GB، قد يستغرق دقيقة)..."
 # Releases before 0.3.0 shipped a 3.8 GB PyTorch model in model/; it is not used any more.
 rm -rf "$RES_DIR/model"
 rm -rf "$RES_DIR/model-gguf" "$RES_DIR/bin"
