@@ -142,7 +142,15 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
 </plist>
 PLIST
 
-# ---- launcher script ----------------------------------------------------
+# ---- launcher -------------------------------------------------------------
+# The compiled launcher (packaging/launcher/saghi_launcher.c, built by CI) runs
+# Python inside Saghi.app's own process, so macOS shows the menu-bar icon
+# (it hides status items of a bare python3.12). The shell script is the
+# fallback for bundles built without it.
+if [ -f "$BUNDLE_DIR/Saghi-launcher" ]; then
+  rm -f "$MACOS_DIR/Saghi"
+  cp "$BUNDLE_DIR/Saghi-launcher" "$MACOS_DIR/Saghi"
+else
 cat > "$MACOS_DIR/Saghi" << LAUNCHER
 #!/bin/bash
 # Saghi launcher -- resolves paths relative to this .app bundle so it
@@ -151,6 +159,7 @@ DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/../Resources" && pwd)"
 export PYTHONPATH="\$DIR/app"
 exec "\$DIR/venv/bin/$PY_BIN_NAME" -m saghi.ui.app
 LAUNCHER
+fi
 chmod +x "$MACOS_DIR/Saghi"
 
 # Releases before 0.3.0 installed torch/transformers (about 1 GB). Saghi no longer

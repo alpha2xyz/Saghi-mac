@@ -132,6 +132,19 @@ check(plist["EnvironmentVariables"]["SAGHI_MODEL_DIR"] == "/models/m", "passes t
 check(plist["WorkingDirectory"] == "/Users/x/Applications/Saghi.app/Contents/Resources", "works from the app's Resources dir")
 check(plist["Label"] == "io.github.alpha2xyz.saghi-mac", "same label as the installer's LaunchAgent")
 
+# With the compiled launcher in Contents/MacOS the LaunchAgent starts Saghi.app
+# itself (macOS hides a bare python3.12's menu-bar icon); a shell-script
+# launcher keeps the python path above.
+fake_app = SCRATCH / "Saghi.app"
+(fake_app / "Contents" / "MacOS").mkdir(parents=True, exist_ok=True)
+(fake_app / "Contents" / "Resources" / "venv" / "bin").mkdir(parents=True, exist_ok=True)
+fake_launcher = fake_app / "Contents" / "MacOS" / "Saghi"
+fake_launcher.write_text("#!/bin/bash\nexec python\n")
+fake_py = str(fake_app / "Contents" / "Resources" / "venv" / "bin" / "python3.12")
+check(login_item.build_plist(executable=fake_py)["ProgramArguments"] == [fake_py, "-m", "saghi.ui.app"], "a shell-script launcher: still runs python -m saghi.ui.app")
+fake_launcher.write_bytes(b"\xcf\xfa\xed\xfe" + b"\0" * 28)
+check(login_item.build_plist(executable=fake_py)["ProgramArguments"] == [str(fake_launcher)], "a compiled launcher: the LaunchAgent starts Saghi.app's own executable")
+
 check(login_item.set_enabled(True, model_dir="/models/m") is True, "set_enabled(True) succeeds")
 check(login_item.is_enabled() is True, "the plist now exists")
 with open(login_item.plist_path(), "rb") as f:
