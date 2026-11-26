@@ -235,6 +235,11 @@ def build(argv: Optional[list] = None) -> AppContext:
     )
     tray.connect_updates(updates, notify=False)
     tray.show()
+    # macOS can hide a status item (e.g. not allowed in System Settings >
+    # Menu Bar); a zero-height geometry in the log is that case.
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(3000, lambda: logger.info("Menu-bar icon geometry: %s", tray.geometry()))
 
     if first_launch:
         _show_main_window()
