@@ -179,6 +179,7 @@ def build(argv: Optional[list] = None) -> AppContext:
 
         if not accessibility_trusted(prompt=True):
             logger.warning("Accessibility permission missing: auto-paste will not work until it is granted")
+        _request_input_monitoring()
 
     def _quit() -> None:
         logger.info("Quitting Saghi -- stopping dictation + API server")
@@ -279,6 +280,22 @@ def _activate_app() -> None:
         NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
     except Exception:  # noqa: BLE001
         logger.debug("Could not activate the app", exc_info=True)
+
+
+def _request_input_monitoring() -> None:
+    """
+    macOS: the global shortcut listens to the keyboard with a listen-only
+    event tap, which needs the Input Monitoring permission (Accessibility
+    alone is not enough). Ask once on start-up when it is missing, so Saghi
+    appears in System Settings > Privacy & Security > Input Monitoring.
+    """
+    try:
+        from Quartz import CGPreflightListenEventAccess, CGRequestListenEventAccess
+    except Exception:  # noqa: BLE001
+        return
+    if not CGPreflightListenEventAccess():
+        logger.warning("Input Monitoring permission missing: the shortcut will not work until it is granted")
+        CGRequestListenEventAccess()
 
 
 def _install_reopen_handler(app, show: Callable[[], None], idle: Callable[[], bool] = lambda: True) -> None:
