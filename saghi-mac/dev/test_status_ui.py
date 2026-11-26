@@ -500,19 +500,13 @@ check(
         strings.hotkey_hint(settings_manager.current.hotkey),
         "-",
         strings.TRAY_OPEN,
-        strings.format_tray_engine_line(engine_status.state, engine_status.device),
-        "-",
-        strings.TRAY_SHOW_PILL,
-        strings.TRAY_DICTATION_TOGGLE,
-        strings.TRAY_CHECK_UPDATES,
         "-",
         strings.TRAY_QUIT,
     ],
-    "menu order: status, hint, --, open, engine line, --, show pill, dictation, updates, --, quit",
+    "menu order: status, hint, --, open settings, --, quit",
 )
-check(not actions[0].isEnabled() and not actions[1].isEnabled() and not tray._status_action.isEnabled(),
-      "status line, hint and engine line are disabled (display only)")
-check(not tray._updates_action.isVisible(), "the updates item is hidden until connect_updates")
+check(strings.TRAY_OPEN == "فتح إعدادات صاغي", "the open item says 'open Saghi settings'")
+check(not actions[0].isEnabled() and not actions[1].isEnabled(), "status line and hint are disabled (display only)")
 check(tray.toolTip() == strings.APP_TITLE + " — " + strings.status_line("ready"), "tooltip = app title + status line")
 
 # One icon per status, only recording is a colour icon.
@@ -584,18 +578,12 @@ check(tray.state == "disabled" and tray._state_action.text() == strings.status_l
 controller.set_enabled(True)
 check(tray.state == "ready", "controller re-enabled -> tray ready")
 
-print("\n--- dictation toggle, engine line, updates, open ---")
-
-tray._dictation_action.setChecked(False)
-check(controller.enabled is False and tray.state == "disabled", "unchecking 'تفعيل الإملاء' disables dictation and the tray follows")
-tray._dictation_action.setChecked(True)
-check(controller.enabled is True and tray.state == "ready", "checking it enables dictation again")
+print("\n--- engine status, open settings ---")
 
 engine.is_loaded = False
 engine_status._state = "cold"
 engine_status.mark_loading()
-check(tray._status_action.text() == strings.format_tray_engine_line("loading", ""), "the engine line still follows the engine status bridge")
-check(tray.state == "loading", "...and the status line follows it too (through the controller)")
+check(tray.state == "loading", "the status line follows the engine loading (through the controller)")
 engine_status._state = "ready"
 engine_status._emit()
 check(tray.state == "ready", "engine ready -> tray ready")
@@ -607,44 +595,8 @@ tray.show_main_window()
 check((window.shown, window.raised, window.activated) == (2, 2, 2), "show_main_window does the same (public)")
 pill.open_requested.emit()
 check(window.shown == 3, "the pill's open request reaches the main window through the tray")
-from PySide6.QtWidgets import QSystemTrayIcon  # noqa: E402
-
-tray._on_activated(QSystemTrayIcon.ActivationReason.Trigger)
-check(window.shown == 4, "a click on the tray icon still opens the window")
-tray._on_activated(QSystemTrayIcon.ActivationReason.Context)
-check(window.shown == 4, "a context-menu activation does not")
-
-
-class _FakeUpdates(QObject):
-    update_found = Signal(object)
-    opened = 0
-
-    def open_dialog(self) -> None:
-        _FakeUpdates.opened += 1
-
-
-fake_updates = _FakeUpdates()
-tray.connect_updates(fake_updates)
-check(tray._updates_action.isVisible(), "connect_updates shows the updates item")
-tray._updates_action.trigger()
-check(_FakeUpdates.opened == 1, "...and it opens the update dialog")
-
-print("\n--- 'always show the pill' toggle <-> settings ---")
-
-settings_manager.update(floating_pill_mode="always")
-check(tray._pill_action.isCheckable() and tray._pill_action.isChecked(), "checked while the mode is 'always'")
-tray._pill_action.trigger()
-check(settings_manager.current.floating_pill_mode == "active", "unchecking it writes floating_pill_mode='active'")
-check(("mode", "active") in _SpyPill.calls, "...which the controller pushed into the pill")
-tray._pill_action.trigger()
-check(settings_manager.current.floating_pill_mode == "always", "checking it writes 'always'")
-settings_manager.update(floating_pill_mode="active")
-check(not tray._pill_action.isChecked(), "a settings change to 'active' unchecks the menu item")
-settings_manager.update(floating_pill_mode="always")
-check(tray._pill_action.isChecked(), "and back to 'always' checks it")
-pill.mode_change_requested.emit("active")
-check(not tray._pill_action.isChecked(), "the pill's own 'hide when idle' item unchecks it too")
-settings_manager.update(floating_pill_mode="always")
+tray.activated.emit(tray.ActivationReason.Trigger)
+check(window.shown == 3, "a click on the menu-bar icon does not open the window (it only opens the menu)")
 
 settings_manager.update(hotkey="alt+cmd")
 check(actions[1].text() == strings.hotkey_hint("alt+cmd"), "the hint line follows a changed hotkey")
@@ -656,13 +608,9 @@ bare_window = _Window()
 bare = SaghiTray(bare_window, engine_status, on_quit=lambda: None)
 check(bare.state == "ready", "no controller: starts ready")
 check(bare.icon().cacheKey() == bare._frames["ready"][0].cacheKey() and bare.icon().isMask(), "...with the mic icon")
-check(bare._status_action.text() == strings.format_tray_engine_line(engine_status.state, engine_status.device),
-      "the engine line is there")
 bare_texts = ["-" if a.isSeparator() else a.text() for a in bare.contextMenu().actions()]
 check(strings.status_line("ready") in bare_texts, "the status line is shown")
 check(not any(t.startswith("اضغط") for t in bare_texts), "no hotkey hint without settings")
-check(not bare._pill_action.isEnabled(), "the pill toggle is inert without settings")
-check(not bare._dictation_action.isEnabled(), "the dictation toggle is inert without a controller")
 bare.set_status("recording")
 check(bare.state == "recording" and not bare.icon().isMask(), "set_status works on its own")
 bare.set_status("ready")

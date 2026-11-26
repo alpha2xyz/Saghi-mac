@@ -20,9 +20,9 @@ follows the menu bar's light/dark tint on its own. Frames are rendered once
 up front; the animations only swap cached QIcons on a slow timer, which
 runs in the two animated states and nowhere else.
 
-Menu: status line, hotkey hint, "open Saghi", the engine line, the "always
-show the pill" toggle (bound to settings.floating_pill_mode), the dictation
-toggle, "check for updates" (once wired) and "quit".
+Menu: status line, hotkey hint, "open Saghi settings" and "quit". A left
+click only opens the menu; the window opens from "open Saghi settings",
+the notch island, or launching Saghi.app again.
 """
 
 from __future__ import annotations
@@ -121,6 +121,8 @@ class SaghiTray(QSystemTrayIcon):
         self._animation_timer.setInterval(_ANIMATION_INTERVAL_MS)
         self._animation_timer.timeout.connect(self._on_animation_tick)
 
+        # Menu: what Saghi is doing, which keys to hold, open settings, quit.
+        # A click on the icon only opens this menu (it never opens the window).
         menu = QMenu()
 
         self._state_action = QAction(menu)
@@ -133,55 +135,13 @@ class SaghiTray(QSystemTrayIcon):
             self._hint_action = QAction(strings.hotkey_hint(settings_manager.current.hotkey), menu)
             self._hint_action.setEnabled(False)
             menu.addAction(self._hint_action)
+            settings_manager.on_change(self._on_settings_changed)
 
         menu.addSeparator()
 
         open_action = QAction(strings.TRAY_OPEN, menu)
         open_action.triggered.connect(self._show_main_window)
         menu.addAction(open_action)
-
-        self._status_action = QAction(
-            strings.format_tray_engine_line(engine_status.state, engine_status.device), menu
-        )
-        self._status_action.setEnabled(False)
-        menu.addAction(self._status_action)
-
-        menu.addSeparator()
-
-        # The floating pill: on screen always, or only while dictating.
-        # The check mirrors settings.floating_pill_mode in both directions.
-        self._pill_action = QAction(strings.TRAY_SHOW_PILL, menu)
-        self._pill_action.setCheckable(True)
-        if settings_manager is not None:
-            self._pill_action.setChecked(settings_manager.current.floating_pill_mode == "always")
-            self._pill_action.toggled.connect(self._on_pill_toggled)
-            settings_manager.on_change(self._on_settings_changed)
-        else:
-            self._pill_action.setChecked(True)
-            self._pill_action.setEnabled(False)
-        menu.addAction(self._pill_action)
-
-        # Phase 5: checkable toggle for live dictation, default on. Kept
-        # optional (dictation_controller=None is a no-op action, still
-        # shown but disabled) so this class stays constructible exactly as
-        # before wherever a caller doesn't have a controller yet -- see
-        # dev/test_gui_smoke.py's SaghiTray(win, bridge, on_quit=...) call,
-        # unmodified since Phase 4.
-        self._dictation_action = QAction(strings.TRAY_DICTATION_TOGGLE, menu)
-        self._dictation_action.setCheckable(True)
-        if dictation_controller is not None:
-            self._dictation_action.setChecked(dictation_controller.enabled)
-            self._dictation_action.toggled.connect(dictation_controller.set_enabled)
-        else:
-            self._dictation_action.setChecked(True)
-            self._dictation_action.setEnabled(False)
-        menu.addAction(self._dictation_action)
-
-        # "Check for updates…" -- wired by ui/app.py (connect_updates) to
-        # the UpdateController; hidden until then.
-        self._updates_action = QAction(strings.TRAY_CHECK_UPDATES, menu)
-        self._updates_action.setVisible(False)
-        menu.addAction(self._updates_action)
 
         menu.addSeparator()
 
@@ -190,9 +150,6 @@ class SaghiTray(QSystemTrayIcon):
         menu.addAction(quit_action)
 
         self.setContextMenu(menu)
-        self.activated.connect(self._on_activated)
-
-        engine_status.status_changed.connect(self._on_status_changed)
 
         if dictation_controller is not None:
             dictation_controller.status_changed.connect(self.set_status)
@@ -229,44 +186,11 @@ class SaghiTray(QSystemTrayIcon):
         self._frame_index = (self._frame_index + 1) % len(frames)
         self.setIcon(frames[self._frame_index])
 
-    # ---- the floating pill toggle ----------------------------------------------
-
-    def _on_pill_toggled(self, checked: bool) -> None:
-        mode = "always" if checked else "active"
-        if self._settings_manager.current.floating_pill_mode != mode:
-            self._settings_manager.update(floating_pill_mode=mode)
+    # ---- menu ------------------------------------------------------------------
 
     def _on_settings_changed(self, settings) -> None:
-        # setChecked() re-enters _on_pill_toggled, which finds the mode
-        # already matching and writes nothing.
-        self._pill_action.setChecked(settings.floating_pill_mode == "always")
         if self._hint_action is not None:
             self._hint_action.setText(strings.hotkey_hint(settings.hotkey))
-
-    # ---- rest of the menu ------------------------------------------------------
-
-    def connect_updates(self, controller, notify: bool = True) -> None:
-        """Show the "check for updates" item and (if `notify`) the tray notice for a found update."""
-        self._updates_action.triggered.connect(controller.open_dialog)
-        self._updates_action.setVisible(True)
-        if not notify:
-            return
-        controller.update_found.connect(self._on_update_found)
-        self.messageClicked.connect(controller.open_dialog)
-
-    def _on_update_found(self, result) -> None:
-        if result.latest is not None:
-            self.showMessage(
-                strings.TRAY_UPDATE_AVAILABLE_TITLE,
-                strings.tray_update_available_message(result.latest.version),
-            )
-
-    def _on_status_changed(self, state: str, device: str, stack_path: str) -> None:
-        self._status_action.setText(strings.format_tray_engine_line(state, device))
-
-    def _on_activated(self, reason) -> None:
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self._show_main_window()
 
     def show_main_window(self) -> None:
         self._main_window.show()

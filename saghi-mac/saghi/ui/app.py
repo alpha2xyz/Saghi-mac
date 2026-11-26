@@ -222,9 +222,8 @@ def build(argv: Optional[list] = None) -> AppContext:
     updates.update_found.connect(lambda _result: updates.open_dialog())
     updates.start()
 
-    # Menu-bar icon: status glyph + small menu (open, dictation toggle,
-    # check for updates, quit). The update dialog already opens on its own
-    # when a check finds a release, so the tray adds no second notice.
+    # Menu-bar icon: status glyph + small menu (status, hotkey hint, open
+    # settings, quit). Updates keep their own dialog.
     tray = SaghiTray(
         main_window,
         engine_status,
@@ -233,7 +232,6 @@ def build(argv: Optional[list] = None) -> AppContext:
         settings_manager=settings_manager,
         on_open=_show_main_window,
     )
-    tray.connect_updates(updates, notify=False)
     tray.show()
     # macOS can hide a status item (e.g. not allowed in System Settings >
     # Menu Bar); a zero-height geometry in the log is that case.
@@ -285,33 +283,41 @@ def _activate_app() -> None:
 
 def _install_reopen_handler(app, show: Callable[[], None], idle: Callable[[], bool] = lambda: True) -> None:
     """
-    macOS: show the window when the user clicks Saghi in the Dock, opens
-    Saghi.app while it is already running, or switches to it with Cmd-Tab.
-    When this process was started from Saghi.app, macOS does not launch a
-    second copy (so single_instance never hears about it); it re-activates
-    this process instead. Qt reports that (Dock reopen included) as the app
-    becoming active. Qt can also report "active" when the notch island
-    appears mid-dictation, so it only counts while dictation is idle and
-    macOS really has Saghi in front (the paste must land in the user's app).
+    macOS: show the window when Saghi.app is opened again while it runs
+    (Finder, Spotlight, `open`). macOS does not start a second copy; it sends
+    this process the "reopen" Apple event instead, handled here. The app
+    merely becoming active is NOT used any more: a click on the menu-bar
+    icon activates the app too, and that must only open the menu.
     """
     if sys.platform != "darwin" or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
         return
-
-    def _on_state(state) -> None:
-        if state == Qt.ApplicationState.ApplicationActive and idle() and _is_frontmost():
-            logger.info("Saghi activated (Dock click / reopen): showing the window")
-            show()
-
-    app.applicationStateChanged.connect(_on_state)
-
-
-def _is_frontmost() -> bool:
     try:
-        from AppKit import NSApplication
-
-        return bool(NSApplication.sharedApplication().isActive())
+        import objc
+        from Foundation import NSAppleEventManager, NSObject
     except Exception:  # noqa: BLE001
-        return False
+        logger.debug("PyObjC missing: no reopen handler", exc_info=True)
+        return
+
+    class _ReopenHandler(NSObject):
+        @objc.typedSelector(b"v@:@@")
+        def handleReopen_withReply_(self, event, reply):  # noqa: N802 (Cocoa selector)
+            if idle():
+                logger.info("Saghi.app opened again: showing the window")
+                show()
+
+    handler = _ReopenHandler.alloc().init()
+    app._saghi_reopen_handler = handler  # keep it alive as long as the app
+
+    def _register() -> None:
+        # Once the event loop runs: AppKit sets up its own Apple event
+        # handlers while finishing launch, which would replace this one.
+        NSAppleEventManager.sharedAppleEventManager().setEventHandler_andSelector_forEventClass_andEventID_(
+            handler, b"handleReopen:withReply:", int.from_bytes(b"aevt", "big"), int.from_bytes(b"rapp", "big")
+        )
+
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(500, _register)
 
 
 def _apply_startup_settings(settings_manager: SettingsManager) -> None:
