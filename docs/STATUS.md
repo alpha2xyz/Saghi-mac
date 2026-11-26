@@ -16,6 +16,25 @@ Newest first. Every session adds an entry before it ends.
 - **Merged** as PR #11 on 2026-11-27 after the owner's dictation test (log: 3.08 s captured, peak 0.26, transcribed in 0.6 s). Dry-run build on `main` (publish off) passed, including the new launcher step and the Mach-O check in the install smoke test. Nothing published; v0.3.2 is still the latest release.
 - **Note:** `claude/both-models` has 3 commits not in `main` (punctuation, quit fix) that the owner's installed app already carries; they need their own PR before the next release.
 
+## 2026-11-25 - Update installed but never loaded: quit was cancelled (owner's Mac, branch `claude/both-models`)
+**Area:** `saghi/ui/app.py` (`_quit`, `main`), `dev/test_update_restart.py`.
+
+- Owner's report: the app offered an update; pressing update/restart (several times) and quitting changed nothing.
+- Log + `sample` of the live process: the light update to 0.3.2 installed twice, "Quitting Saghi" was logged, but the main Qt loop kept running; the 20:33 process never ended, so the new code never loaded and every reopen just showed the old window.
+- Cause: `_quit()` used `QApplication.quit()`, which in Qt 6 first asks every window (and macOS) to close; one refusal silently cancels it. Fix: `app.exit(0)`, plus a 5 s daemon timer after `exec()` returns that hard-exits, so the relaunch (which waits for the PID to end) always fires.
+- Why an update was offered at all: the in-place punctuation install had no `_version.py` (source tree), so the app reported 0.0.0. The update then overwrote the punctuation fix with plain 0.3.2. **In-place installs must keep the installed `_version.py`** (rsync with `--exclude=_version.py`).
+- Tests: new `test_update_restart` (fails before the fix with exit 99, passes after), `test_gui_apiserver` 6/6, `test_finish_dictation` 14/14.
+- Installed in place again (repo code incl. punctuation fix, version file kept at 0.3.2; backup `Resources/app/saghi.before-quitfix`), old process stopped, Saghi reopened. Owner still to confirm the quit button now closes the app.
+
+## 2026-11-24 - Auto full stop + space after each dictation (owner's Mac, branch `claude/both-models`)
+**Area:** `saghi/cleanup.py` (`finish_dictation`), `saghi/ui/dictation.py`, `dev/test_finish_dictation.py`.
+
+- Owner's report: no full stop at the end of a take, and the next take glues onto the previous one, so speaking sentence by sentence was slow.
+- Fix: before pasting a live dictation, Saghi adds «.» when the take ends without punctuation («؟» when it opens with a question word such as هل/كيف/وش/ليش; "?" for English), then one trailing space. History keeps the text without the extra space. File jobs are unchanged.
+- Tests: test_finish_dictation 14/14, test_cleanup 20/20.
+- Owner's decision: the owner's name and other words NOT added to `vocabulary.txt` for now. The ط/ظ/ض/ص mix-ups come from the model; later option is the OpenRouter text polish.
+- 2026-11-25: copied in place into the owner's installed Saghi.app (backup in `~/.saghi-work/backup-before-punct-2026-11-25/`), re-signed ad-hoc, restarted; app runs. Owner wants to batch more changes before the next release. Not yet tried by voice.
+
 ## 2026-11-24 - § key crash + «آآ» left in the text (owner's Mac, branch `claude/both-models`)
 **Area:** `saghi/hotkey.py`, `saghi/cleanup.py`, `dev/test_cleanup.py`.
 

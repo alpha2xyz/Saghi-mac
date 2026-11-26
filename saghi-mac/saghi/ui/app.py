@@ -185,7 +185,11 @@ def build(argv: Optional[list] = None) -> AppContext:
         logger.info("Quitting Saghi -- stopping dictation + API server")
         dictation.stop()
         api_thread.stop()
-        app.quit()
+        # exit(), not quit(): in Qt 6 quit() first asks every window (and
+        # macOS) to close, and one refusal silently cancels it -- the old
+        # process then kept running, so "restart" after an update and the
+        # quit button did nothing.
+        app.exit(0)
 
     def _show_main_window() -> None:
         main_window.show()
@@ -391,6 +395,11 @@ def main(argv: Optional[list] = None) -> int:
         return ctx.app.exec()
     finally:
         watchdog.stop()
+        # The relaunch after an update waits for this process to end: never
+        # let a stuck background thread keep it alive past a few seconds.
+        killer = threading.Timer(5.0, lambda: (logging.shutdown(), os._exit(0)))
+        killer.daemon = True
+        killer.start()
 
 
 if __name__ == "__main__":

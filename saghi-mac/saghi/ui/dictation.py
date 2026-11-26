@@ -73,6 +73,7 @@ import soundfile as sf
 from PySide6.QtCore import QObject, QThread, Signal
 
 from .. import history, openrouter, paste, paths
+from ..cleanup import finish_dictation
 from ..hotkey import HotkeyListener
 from ..recorder import Recorder, is_builtin_name, is_silent
 from ..settings import VALID_PILL_MODES, SettingsManager
@@ -660,7 +661,7 @@ class DictationController(QObject):
             return
         settings = self._settings_manager.current
 
-        paste_result = paste.paste_text(result.text, autopaste=settings.autopaste)
+        paste_result = paste.paste_text(finish_dictation(result.text), autopaste=settings.autopaste)
         if settings.autopaste and not paste_result.pasted:
             logger.info(
                 "Autopaste did not complete (likely a missing Accessibility permission grant) -- "
