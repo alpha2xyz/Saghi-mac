@@ -14,7 +14,7 @@ Newest first. Every session adds an entry before it ends.
 - **Tests:** test_new_options 116, test_recorder_stop_timeout 9, test_mic_devices 54, test_gui_smoke 120, test_status_ui 145, test_tap_toggle 31, test_hotkey_custom 142 pass. test_gui_apiserver fails the same way on `main` while the installed app holds the API port (not from this change).
 - **Installed in place:** this diff patched onto the installed 0.3.2 bundle (which also carries the unmerged punctuation and quit commits from `claude/both-models`); backup in `~/.saghi-work/` outside the repo. Bundle re-signed ad-hoc (its Info.plist had been edited by the updater, leaving the signature invalid); re-signing may reset the Microphone/Accessibility permissions, so check the next dictation.
 - **Merged** as PR #11 on 2026-11-27 after the owner's dictation test (log: 3.08 s captured, peak 0.26, transcribed in 0.6 s). Dry-run build on `main` (publish off) passed, including the new launcher step and the Mach-O check in the install smoke test. Nothing published; v0.3.2 is still the latest release.
-- **Note:** `claude/both-models` has 3 commits not in `main` (punctuation, quit fix) that the owner's installed app already carries; they need their own PR before the next release.
+- **Punctuation + quit fixes** from `claude/both-models` reached `main` via PR #12 (cherry-picked, merged 2026-11-27). `main` now equals the owner's installed app code; `claude/both-models` can be deleted. Next: release 0.3.3 (owner's decision) so other installs get the native launcher with a full install.
 
 ## 2026-11-25 - Update installed but never loaded: quit was cancelled (owner's Mac, branch `claude/both-models`)
 **Area:** `saghi/ui/app.py` (`_quit`, `main`), `dev/test_update_restart.py`.
