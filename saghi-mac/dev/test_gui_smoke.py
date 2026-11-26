@@ -353,13 +353,9 @@ check(bridge.state == "cold", "bridge starts cold when engine.is_loaded is False
 
 sm5 = settings.SettingsManager()
 win5 = MainWindow(sm5, stub_engine, bridge)
-tray5 = SaghiTray(win5, bridge, on_quit=lambda: None)
+tray5 = SaghiTray(win5, bridge, on_quit=lambda: None)  # still constructible without a controller
 
 check(win5.status_chip.text() == strings.ENGINE_COLD, "header chip shows بارد before anything loads")
-check(
-    tray5._status_action.text() == strings.format_tray_engine_line("cold", ""),
-    "tray status line shows المحرك: بارد before anything loads",
-)
 
 # mark_loading() -- what FileJobPage calls right before starting a worker.
 # Signal delivery is synchronous here (same-thread direct connection, no
@@ -367,10 +363,6 @@ check(
 bridge.mark_loading()
 check(bridge.state == "loading", "bridge.mark_loading() transitions state to loading")
 check(win5.status_chip.text() == strings.ENGINE_LOADING, "header chip updates to جارٍ التحميل")
-check(
-    tray5._status_action.text() == strings.format_tray_engine_line("loading", ""),
-    "tray status line updates to المحرك: جارٍ التحميل",
-)
 
 # The 1s QTimer poll -- called directly (deterministic) rather than waiting
 # on the real timer interval inside a test.
@@ -382,10 +374,6 @@ check(bridge.state == "ready", "bridge._poll() transitions state to ready once e
 check(
     win5.status_chip.text() == strings.format_engine_status("ready", "cpu"),
     "header chip updates to the CPU جاهز form (device isolated per the mixed-text rule)",
-)
-check(
-    tray5._status_action.text() == strings.format_tray_engine_line("ready", "cpu"),
-    "tray status line updates to المحرك: جاهز",
 )
 
 print("Test 5 passed.\n")

@@ -110,6 +110,27 @@ jobs:
           du -sh Saghi-Mac-Portable
           df -h /
 
+      - name: Build the native launcher (embeds Python in Saghi.app's process)
+        run: |
+          set -euo pipefail
+          PYRT="Saghi-Mac-Portable/python-runtime"
+          OUT="Saghi-Mac-Portable/Saghi-launcher"
+          # Python runs inside the app's own process so macOS ties the menu-bar
+          # icon to Saghi.app (it hides status items of a bare python3.12).
+          clang -O2 -arch arm64 -mmacosx-version-min=13.0 \
+            -I"$PYRT/include/python3.12" -L"$PYRT/lib" -lpython3.12 \
+            -Wl,-rpath,@executable_path/../Resources/python-runtime/lib \
+            -o "$OUT" saghi-mac/packaging/launcher/saghi_launcher.c
+          codesign --force -s - "$OUT"
+          file "$OUT"
+          otool -L "$OUT"
+          if otool -L "$OUT" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib/|/System/Library/|@rpath/libpython3\.12\.dylib)'; then
+            echo "the launcher links an unexpected library (listed above)" >&2
+            exit 1
+          fi
+          MINOS="$(vtool -show-build "$OUT" | awk '/minos/ {print $2; exit}')"
+          test "${MINOS%%.*}" -le 13 || { echo "minos $MINOS is above 13.0" >&2; exit 1; }
+
       - name: Install (smoke test, hard failure)
         run: |
           set -euo pipefail
@@ -117,6 +138,7 @@ jobs:
           echo n | bash Saghi-Mac-Portable/install-saghi.command
           APP="$HOME/Applications/Saghi.app"
           test -d "$APP" || { echo "Saghi.app was not created" >&2; exit 1; }
+          file "$APP/Contents/MacOS/Saghi" | grep -q 'Mach-O' || { echo "Saghi.app's executable is not the native launcher" >&2; exit 1; }
           RES="$APP/Contents/Resources"
           PYTHONPATH="$RES/app" QT_QPA_PLATFORM=offscreen "$RES/venv/bin/python3.12" -c \
             "import os, saghi, saghi.api, saghi.engine, saghi.updater, PySide6.QtCore; print('import ok:', saghi.__file__, saghi.__version__); assert saghi.__version__ == os.environ['VERSION'], 'version stamp missing'"

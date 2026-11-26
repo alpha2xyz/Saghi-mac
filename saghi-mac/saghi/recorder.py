@@ -59,6 +59,7 @@ TARGET_SAMPLE_RATE = 16000
 MAX_DURATION_S = 300.0  # 5 minutes hard cap, see module docstring / _on_audio
 LEVEL_WINDOW_S = 0.5  # how much recent audio level()/waveform reads from
 SILENCE_PEAK_EPS = 1e-6  # see is_silent()
+STOP_TIMEOUT_S = 1.5  # max wait for the stream to stop, see Recorder._stop_stream
 
 
 # Streams currently open across every Recorder. PortAudio can only be
@@ -343,11 +344,24 @@ class Recorder:
             self._recent_frames = 0
 
     def _stop_stream(self) -> None:
-        global _open_streams
+        """
+        Stop and close the stream on a helper thread, waiting at most
+        STOP_TIMEOUT_S. Pa_StopStream can block forever inside CoreAudio
+        (seen in saghi.log: the UI thread stuck in AudioOutputUnitStop
+        waiting on a CoreAudio mutex). The captured audio is already in our
+        buffers, so on a timeout the stuck stream is left to its thread and
+        the caller (the UI thread) carries on. The stream stays counted in
+        _open_streams until its thread finishes, so refresh_devices() never
+        Pa_Terminates under it.
+        """
         self._recording = False
         stream = self._stream
         self._stream = None
-        if stream is not None:
+        if stream is None:
+            return
+
+        def _close() -> None:
+            global _open_streams
             try:
                 stream.stop()
                 stream.close()
@@ -355,6 +369,15 @@ class Recorder:
                 logger.exception("Error stopping/closing input stream")
             with _pa_lock:
                 _open_streams = max(0, _open_streams - 1)
+
+        closer = threading.Thread(target=_close, name="saghi-mic-close", daemon=True)
+        closer.start()
+        closer.join(STOP_TIMEOUT_S)
+        if closer.is_alive():
+            logger.error(
+                "Stopping the microphone stream did not finish within %.1fs -- left it to a helper thread",
+                STOP_TIMEOUT_S,
+            )
 
     def duration_s(self) -> float:
         """Duration of the buffer that stop() would currently return, in seconds."""

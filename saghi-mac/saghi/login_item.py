@@ -48,6 +48,20 @@ def is_enabled() -> bool:
     return plist_path().exists()
 
 
+def native_launcher(resources: Optional[Path]) -> Optional[Path]:
+    """Saghi.app/Contents/MacOS/Saghi if it is the compiled launcher (not the old shell script), else None."""
+    if resources is None:
+        return None
+    launcher = resources.parent / "MacOS" / "Saghi"
+    try:
+        with open(launcher, "rb") as f:
+            magic = f.read(4)
+    except OSError:
+        return None
+    # Mach-O 64-bit (little-endian) or a universal binary.
+    return launcher if magic in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe") else None
+
+
 def build_plist(executable: Optional[str] = None, model_dir: Optional[str] = None) -> dict:
     """
     The LaunchAgent contents, mirroring packaging/io.github.alpha2xyz.saghi-mac.plist
@@ -64,9 +78,14 @@ def build_plist(executable: Optional[str] = None, model_dir: Optional[str] = Non
         env["SAGHI_MODEL_DIR"] = str(model)
 
     log_file = (resources / "launchagent.log") if resources else (paths.data_dir() / "launchagent.log")
+    # The app's native launcher runs Python inside Saghi.app's own process, so
+    # macOS ties the menu-bar icon (and permissions) to Saghi.app. A bare
+    # `python3.12 -m saghi.ui.app` gets its status item hidden by macOS.
+    launcher = native_launcher(resources)
+    program = [str(launcher)] if launcher else [str(exe), "-m", "saghi.ui.app"]
     return {
         "Label": LABEL,
-        "ProgramArguments": [str(exe), "-m", "saghi.ui.app"],
+        "ProgramArguments": program,
         "EnvironmentVariables": env,
         "WorkingDirectory": str(resources or package_parent),
         "RunAtLoad": True,

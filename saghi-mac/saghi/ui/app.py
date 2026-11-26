@@ -6,11 +6,13 @@ direction, per README_AR.md's Arabic-first UI), one shared SaghiEngine
 instance, the main window, and the local API server -- all in one process
 (the model runs on a background thread so the UI stays responsive).
 
-There is no menu-bar icon and no Dock icon: Saghi lives in the notch island.
+There is no Dock icon. Saghi lives in the notch island and has a menu-bar
+icon (ui/tray.py, the waveform glyph) with a small menu.
 The main window stays hidden at start-up (except on the very first launch)
-and opens when the island is clicked or Saghi is launched again; closing it
-only hides it (MainWindow.closeEvent). The process runs until
-"إنهاء صاغي" (quit) is pressed in Configuration.
+and opens when the island or the menu-bar icon is clicked, or Saghi is
+launched again; closing it only hides it (MainWindow.closeEvent). The
+process runs until "إنهاء" (quit) is chosen in the menu-bar menu or
+Configuration.
 
 The engine is deliberately NOT loaded here -- SaghiEngine's constructor is
 cheap (no torch/transformers import happens until .load()/.transcribe() is
@@ -48,6 +50,7 @@ from ..settings import SettingsManager, settings_path
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
 from .mainwindow import MainWindow
+from .tray import SaghiTray
 from .update_dialog import UpdateController
 
 logger = logging.getLogger("saghi.ui.app")
@@ -123,7 +126,7 @@ class AppContext:
     dictation: DictationController
     quit_fn: Callable[[], None]
     show_main_window: Callable[[], None]
-    tray: None = None  # no menu-bar icon any more; kept for older callers
+    tray: Optional[SaghiTray] = None
     updates: Optional[UpdateController] = None
 
     def quit(self) -> None:
@@ -176,6 +179,7 @@ def build(argv: Optional[list] = None) -> AppContext:
 
         if not accessibility_trusted(prompt=True):
             logger.warning("Accessibility permission missing: auto-paste will not work until it is granted")
+        _request_input_monitoring()
 
     def _quit() -> None:
         logger.info("Quitting Saghi -- stopping dictation + API server")
@@ -219,6 +223,23 @@ def build(argv: Optional[list] = None) -> AppContext:
     updates.update_found.connect(lambda _result: updates.open_dialog())
     updates.start()
 
+    # Menu-bar icon: status glyph + small menu (status, hotkey hint, open
+    # settings, quit). Updates keep their own dialog.
+    tray = SaghiTray(
+        main_window,
+        engine_status,
+        on_quit=_quit,
+        dictation_controller=dictation,
+        settings_manager=settings_manager,
+        on_open=_show_main_window,
+    )
+    tray.show()
+    # macOS can hide a status item (e.g. not allowed in System Settings >
+    # Menu Bar); a zero-height geometry in the log is that case.
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(3000, lambda: logger.info("Menu-bar icon geometry: %s", tray.geometry()))
+
     if first_launch:
         _show_main_window()
 
@@ -232,6 +253,7 @@ def build(argv: Optional[list] = None) -> AppContext:
         api_thread=api_thread,
         dictation=dictation,
         quit_fn=_quit,
+        tray=tray,
         updates=updates,
     )
 
@@ -260,35 +282,59 @@ def _activate_app() -> None:
         logger.debug("Could not activate the app", exc_info=True)
 
 
+def _request_input_monitoring() -> None:
+    """
+    macOS: the global shortcut listens to the keyboard with a listen-only
+    event tap, which needs the Input Monitoring permission (Accessibility
+    alone is not enough). Ask once on start-up when it is missing, so Saghi
+    appears in System Settings > Privacy & Security > Input Monitoring.
+    """
+    try:
+        from Quartz import CGPreflightListenEventAccess, CGRequestListenEventAccess
+    except Exception:  # noqa: BLE001
+        return
+    if not CGPreflightListenEventAccess():
+        logger.warning("Input Monitoring permission missing: the shortcut will not work until it is granted")
+        CGRequestListenEventAccess()
+
+
 def _install_reopen_handler(app, show: Callable[[], None], idle: Callable[[], bool] = lambda: True) -> None:
     """
-    macOS: show the window when the user clicks Saghi in the Dock, opens
-    Saghi.app while it is already running, or switches to it with Cmd-Tab.
-    When this process was started from Saghi.app, macOS does not launch a
-    second copy (so single_instance never hears about it); it re-activates
-    this process instead. Qt reports that (Dock reopen included) as the app
-    becoming active. Qt can also report "active" when the notch island
-    appears mid-dictation, so it only counts while dictation is idle and
-    macOS really has Saghi in front (the paste must land in the user's app).
+    macOS: show the window when Saghi.app is opened again while it runs
+    (Finder, Spotlight, `open`). macOS does not start a second copy; it sends
+    this process the "reopen" Apple event instead, handled here. The app
+    merely becoming active is NOT used any more: a click on the menu-bar
+    icon activates the app too, and that must only open the menu.
     """
     if sys.platform != "darwin" or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
         return
-
-    def _on_state(state) -> None:
-        if state == Qt.ApplicationState.ApplicationActive and idle() and _is_frontmost():
-            logger.info("Saghi activated (Dock click / reopen): showing the window")
-            show()
-
-    app.applicationStateChanged.connect(_on_state)
-
-
-def _is_frontmost() -> bool:
     try:
-        from AppKit import NSApplication
-
-        return bool(NSApplication.sharedApplication().isActive())
+        import objc
+        from Foundation import NSAppleEventManager, NSObject
     except Exception:  # noqa: BLE001
-        return False
+        logger.debug("PyObjC missing: no reopen handler", exc_info=True)
+        return
+
+    class _ReopenHandler(NSObject):
+        @objc.typedSelector(b"v@:@@")
+        def handleReopen_withReply_(self, event, reply):  # noqa: N802 (Cocoa selector)
+            if idle():
+                logger.info("Saghi.app opened again: showing the window")
+                show()
+
+    handler = _ReopenHandler.alloc().init()
+    app._saghi_reopen_handler = handler  # keep it alive as long as the app
+
+    def _register() -> None:
+        # Once the event loop runs: AppKit sets up its own Apple event
+        # handlers while finishing launch, which would replace this one.
+        NSAppleEventManager.sharedAppleEventManager().setEventHandler_andSelector_forEventClass_andEventID_(
+            handler, b"handleReopen:withReply:", int.from_bytes(b"aevt", "big"), int.from_bytes(b"rapp", "big")
+        )
+
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(500, _register)
 
 
 def _apply_startup_settings(settings_manager: SettingsManager) -> None:
