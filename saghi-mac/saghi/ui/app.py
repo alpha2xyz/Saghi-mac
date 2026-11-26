@@ -6,11 +6,13 @@ direction, per README_AR.md's Arabic-first UI), one shared SaghiEngine
 instance, the main window, and the local API server -- all in one process
 (the model runs on a background thread so the UI stays responsive).
 
-There is no menu-bar icon and no Dock icon: Saghi lives in the notch island.
+There is no Dock icon. Saghi lives in the notch island and has a menu-bar
+icon (ui/tray.py, the waveform glyph) with a small menu.
 The main window stays hidden at start-up (except on the very first launch)
-and opens when the island is clicked or Saghi is launched again; closing it
-only hides it (MainWindow.closeEvent). The process runs until
-"إنهاء صاغي" (quit) is pressed in Configuration.
+and opens when the island or the menu-bar icon is clicked, or Saghi is
+launched again; closing it only hides it (MainWindow.closeEvent). The
+process runs until "إنهاء" (quit) is chosen in the menu-bar menu or
+Configuration.
 
 The engine is deliberately NOT loaded here -- SaghiEngine's constructor is
 cheap (no torch/transformers import happens until .load()/.transcribe() is
@@ -48,6 +50,7 @@ from ..settings import SettingsManager, settings_path
 from .dictation import DictationController
 from .engine_status import EngineStatusBridge
 from .mainwindow import MainWindow
+from .tray import SaghiTray
 from .update_dialog import UpdateController
 
 logger = logging.getLogger("saghi.ui.app")
@@ -123,7 +126,7 @@ class AppContext:
     dictation: DictationController
     quit_fn: Callable[[], None]
     show_main_window: Callable[[], None]
-    tray: None = None  # no menu-bar icon any more; kept for older callers
+    tray: Optional[SaghiTray] = None
     updates: Optional[UpdateController] = None
 
     def quit(self) -> None:
@@ -219,6 +222,20 @@ def build(argv: Optional[list] = None) -> AppContext:
     updates.update_found.connect(lambda _result: updates.open_dialog())
     updates.start()
 
+    # Menu-bar icon: status glyph + small menu (open, dictation toggle,
+    # check for updates, quit). The update dialog already opens on its own
+    # when a check finds a release, so the tray adds no second notice.
+    tray = SaghiTray(
+        main_window,
+        engine_status,
+        on_quit=_quit,
+        dictation_controller=dictation,
+        settings_manager=settings_manager,
+        on_open=_show_main_window,
+    )
+    tray.connect_updates(updates, notify=False)
+    tray.show()
+
     if first_launch:
         _show_main_window()
 
@@ -232,6 +249,7 @@ def build(argv: Optional[list] = None) -> AppContext:
         api_thread=api_thread,
         dictation=dictation,
         quit_fn=_quit,
+        tray=tray,
         updates=updates,
     )
 

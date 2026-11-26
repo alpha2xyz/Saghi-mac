@@ -8,7 +8,7 @@ until "إنهاء" is chosen here.
 The icon follows the one status the DictationController publishes (see
 ui/dictation.py, STATUS), so it always agrees with the floating pill:
 
-    ready       mic                       template glyph (tinted by macOS)
+    ready       waveform (full)           template glyph (tinted by macOS)
     recording   mic.fill in red           the only coloured icon
     processing  waveform, levels cycling  animated
     loading     hourglass, pulsing        animated
@@ -44,7 +44,7 @@ _ICON_PATH = Path(__file__).parent / "assets" / "saghi.png"
 _ICON_SIZE = 18
 _RECORDING_COLOR = "#FF3B30"
 _STATUS_SYMBOLS = {
-    "ready": "mic",
+    "ready": "waveform",
     "recording": "mic.fill",
     "processing": "waveform",
     "loading": "hourglass",
@@ -104,6 +104,7 @@ class SaghiTray(QSystemTrayIcon):
         on_quit,
         dictation_controller: Optional[object] = None,
         settings_manager=None,
+        on_open=None,
         parent=None,
     ):
         frames = _build_frames()
@@ -111,6 +112,7 @@ class SaghiTray(QSystemTrayIcon):
         self._frames = frames
         self._main_window = main_window
         self._settings_manager = settings_manager
+        self._on_open = on_open  # app-level "show the window" (also brings the app forward)
         self._state = "ready"
         self._frame_index = 0
 
@@ -243,10 +245,12 @@ class SaghiTray(QSystemTrayIcon):
 
     # ---- rest of the menu ------------------------------------------------------
 
-    def connect_updates(self, controller) -> None:
-        """Show the "check for updates" item and the tray notice for a found update."""
+    def connect_updates(self, controller, notify: bool = True) -> None:
+        """Show the "check for updates" item and (if `notify`) the tray notice for a found update."""
         self._updates_action.triggered.connect(controller.open_dialog)
         self._updates_action.setVisible(True)
+        if not notify:
+            return
         controller.update_found.connect(self._on_update_found)
         self.messageClicked.connect(controller.open_dialog)
 
@@ -270,4 +274,7 @@ class SaghiTray(QSystemTrayIcon):
         self._main_window.activateWindow()
 
     def _show_main_window(self) -> None:
-        self.show_main_window()
+        if self._on_open is not None:
+            self._on_open()
+        else:
+            self.show_main_window()

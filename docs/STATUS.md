@@ -2,6 +2,16 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-27 - freeze on stopping a recording + menu-bar icon back (owner's Mac, branch `fix/menubar-icon-and-stop-freeze`)
+**Area:** `saghi/recorder.py`, `saghi/ui/app.py`, `saghi/ui/tray.py`, `dev/test_recorder_stop_timeout.py`.
+
+- **Freeze:** the app hung for good after a dictation (2026-11-26 and 2026-11-27). The watchdog stacks show the UI thread in `Recorder._stop_stream` -> `stream.stop()` -> `Pa_StopStream` -> CoreAudio `AudioOutputUnitStop`, waiting on a CoreAudio mutex. Fix: the stream is stopped and closed on a helper thread; the UI thread waits at most 1.5 s and then carries on with the audio it already has. The stuck stream stays counted as open until its thread ends, so a device refresh never terminates PortAudio under it. New test `test_recorder_stop_timeout.py` (9 checks, fake streams).
+- **Menu-bar icon:** removed with the notch UI (#6); the owner wants it back and no Dock icon. `SaghiTray` is created again in `build()`. Resting glyph is now `waveform` (was `mic`). The tray opens the window through the app's show function (brings the app forward). The update notice stays the dialog only (`connect_updates(notify=False)`). Dock icon stays hidden (Accessory policy, unchanged).
+- On the owner's Mac a menu-bar hider app collapses icons; the Saghi icon lands in its hidden part until the owner moves it.
+- **Tests:** test_recorder_stop_timeout 9, test_mic_devices 54, test_gui_smoke 123, test_status_ui 161, test_tap_toggle 31, test_hotkey_custom 142 pass. test_gui_apiserver fails the same way on `main` while the installed app holds the API port (not from this change).
+- **Installed in place:** this diff patched onto the installed 0.3.2 bundle (which also carries the unmerged punctuation and quit commits from `claude/both-models`); backup in `~/.saghi-work/` outside the repo. Not re-signed (signature already flagged before; re-signing would reset the mic permission).
+- **Note:** `claude/both-models` has 3 commits not in `main` (punctuation, quit fix); they need their own PR.
+
 ## 2026-11-24 - § key crash + «آآ» left in the text (owner's Mac, branch `claude/both-models`)
 **Area:** `saghi/hotkey.py`, `saghi/cleanup.py`, `dev/test_cleanup.py`.
 
