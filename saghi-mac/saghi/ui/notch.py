@@ -74,6 +74,10 @@ from . import macos_glass, macos_panel, strings
 
 logger = logging.getLogger("saghi.ui.notch")
 
+# The island never opens: the menu-bar icon animates while recording instead.
+# States still change (the controller reads them), only nothing is drawn.
+_ISLAND_OPENS = False
+
 LevelFn = Callable[[], Tuple[np.ndarray, float]]
 
 STATE_HIDDEN = "hidden"
@@ -550,6 +554,8 @@ class NotchIsland(QWidget):
 
     # ------------------------------------------------------------ internals
     def _set_open(self, value: bool, now: float) -> None:
+        if value and not _ISLAND_OPENS:
+            return  # the menu-bar icon shows dictation; the notch stays closed
         if value:
             self._set_dormant(False)
         if value != self._open:

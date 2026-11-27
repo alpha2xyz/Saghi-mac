@@ -17,6 +17,8 @@ app = QApplication.instance() or QApplication(sys.argv)
 
 from saghi.ui import notch  # noqa: E402
 
+notch._ISLAND_OPENS = True  # the checks below cover the drawing code; the shipped app keeps it closed
+
 failures = 0
 checks = 0
 
@@ -146,6 +148,16 @@ check(isl._shape()[3] > isl._notch_h + 30, "and it opens as before")
 isl.hide_indicator()
 run(2.0)
 check(isl.dormant, "dormant again after dictation")
+
+# shipped setting: the island never opens, but the state still changes
+notch._ISLAND_OPENS = False
+isl.show_recording(silence)
+check(isl.state == "recording" and isl.dormant, "closed island: recording state, still dormant")
+run(0.6)
+check(isl._shape()[3] <= isl._notch_h + 1, "closed island: nothing opens while recording")
+isl.hide_indicator()
+run(2.0)
+notch._ISLAND_OPENS = True
 
 # drop-in API used by ui/dictation.py
 for name in ("set_style", "set_color", "set_idle_mode", "set_glass_enabled", "set_anchor", "set_idle_status", "place_top", "place_bottom", "anchor"):
