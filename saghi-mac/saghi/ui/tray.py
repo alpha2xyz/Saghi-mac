@@ -9,20 +9,20 @@ The icon follows the one status the DictationController publishes (see
 ui/dictation.py, STATUS), so it always agrees with the floating pill:
 
     ready       waveform (full)           template glyph (tinted by macOS)
-    recording   mic.fill in red           the only coloured icon
+    recording   waveform, levels cycling  animated (the notch stays closed)
     processing  waveform, levels cycling  animated
     loading     hourglass, pulsing        animated
     error       exclamationmark.triangle
     disabled    mic.slash
 
-Every glyph except the red recording mic is a template (mask) icon, so it
+Every glyph is a template (mask) icon, so it
 follows the menu bar's light/dark tint on its own. Frames are rendered once
 up front; the animations only swap cached QIcons on a slow timer, which
-runs in the two animated states and nowhere else.
+runs in the animated states and nowhere else.
 
 Menu: status line, hotkey hint, "open Saghi settings" and "quit". A left
 click only opens the menu; the window opens from "open Saghi settings",
-the notch island, or launching Saghi.app again.
+or launching Saghi.app again.
 """
 
 from __future__ import annotations
@@ -42,16 +42,16 @@ from .engine_status import EngineStatusBridge
 _ICON_PATH = Path(__file__).parent / "assets" / "saghi.png"
 
 _ICON_SIZE = 18
-_RECORDING_COLOR = "#FF3B30"
 _STATUS_SYMBOLS = {
     "ready": "waveform",
-    "recording": "mic.fill",
+    "recording": "waveform",
     "processing": "waveform",
     "loading": "hourglass",
     "error": "exclamationmark.triangle",
     "disabled": "mic.slash",
 }
 _PROCESSING_LEVELS = (0.2, 0.45, 0.7, 1.0)  # the waveform's variable value, one per frame
+_RECORDING_LEVELS = (0.45, 0.7, 1.0, 0.7)  # recording: the same waveform, rising and falling
 _LOADING_OPACITIES = (1.0, 0.55)  # the hourglass pulse
 _ANIMATION_INTERVAL_MS = 160  # ~6 fps
 
@@ -82,12 +82,9 @@ def _with_opacity(icon: QIcon, opacity: float) -> QIcon:
 def _build_frames() -> dict[str, list[QIcon]]:
     frames: dict[str, list[QIcon]] = {}
     for state, symbol in _STATUS_SYMBOLS.items():
-        if state == "recording":
-            frames[state] = [sf_symbols.icon(symbol, _ICON_SIZE, _RECORDING_COLOR, mask=False)]
-        elif state == "processing":
-            frames[state] = [
-                sf_symbols.icon(symbol, _ICON_SIZE, mask=True, variable=level) for level in _PROCESSING_LEVELS
-            ]
+        if state in ("recording", "processing"):
+            levels = _RECORDING_LEVELS if state == "recording" else _PROCESSING_LEVELS
+            frames[state] = [sf_symbols.icon(symbol, _ICON_SIZE, mask=True, variable=level) for level in levels]
         elif state == "loading":
             base = sf_symbols.icon(symbol, _ICON_SIZE, mask=True)
             frames[state] = [base if opacity >= 1.0 else _with_opacity(base, opacity) for opacity in _LOADING_OPACITIES]
@@ -116,7 +113,7 @@ class SaghiTray(QSystemTrayIcon):
         self._state = "ready"
         self._frame_index = 0
 
-        # Ticks only while the status is processing or loading.
+        # Ticks only while the status is recording, processing or loading.
         self._animation_timer = QTimer(self)
         self._animation_timer.setInterval(_ANIMATION_INTERVAL_MS)
         self._animation_timer.timeout.connect(self._on_animation_tick)

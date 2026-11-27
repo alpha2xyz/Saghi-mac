@@ -11,7 +11,7 @@ microphone, no hotkey listener, no real data dir:
   2. Pill <-> settings: settings are pushed into the pill only when they
      changed, a drag / the pill's own menu are written back to settings,
      the pill's open request is re-emitted, start()/stop() show/hide it.
-  3. SaghiTray: one icon per status (only recording is a colour icon, the
+  3. SaghiTray: one icon per status (recording animates the waveform, the
      rest are template masks), the animation timer runs only while
      processing/loading, status line + tooltip + hint, the "always show the
      pill" toggle bound to settings, and the old constructor (no controller,
@@ -509,7 +509,7 @@ check(strings.TRAY_OPEN == "فتح إعدادات صاغي", "the open item says
 check(not actions[0].isEnabled() and not actions[1].isEnabled(), "status line and hint are disabled (display only)")
 check(tray.toolTip() == strings.APP_TITLE + " — " + strings.status_line("ready"), "tooltip = app title + status line")
 
-# One icon per status, only recording is a colour icon.
+# One icon per status; recording animates the waveform (no colour icon).
 keys = {}
 images = {}
 for state in ("ready", "recording", "processing", "loading", "error", "disabled"):
@@ -519,8 +519,9 @@ for state in ("ready", "recording", "processing", "loading", "error", "disabled"
     images[state] = icon.pixmap(18, 18).toImage()
     check(tray._state_action.text() == strings.status_line(state), f"{state}: status line text")
     check(tray.toolTip() == strings.APP_TITLE + " — " + strings.status_line(state), f"{state}: tooltip")
-    check(tray.icon().isMask() == (state != "recording"), f"{state}: icon is {'not ' if state == 'recording' else ''}a template mask")
-    check(tray._animation_timer.isActive() == (state in ("processing", "loading")), f"{state}: animation timer {'running' if state in ('processing', 'loading') else 'stopped'}")
+    check(tray.icon().isMask(), f"{state}: icon is a template mask")
+    animated = state in ("recording", "processing", "loading")
+    check(tray._animation_timer.isActive() == animated, f"{state}: animation timer {'running' if animated else 'stopped'}")
 check(len(set(keys.values())) == 6, "every status has its own icon")
 check(all(images[a] != images[b] for a in images for b in images if a < b), "and the rendered images all differ")
 
@@ -569,7 +570,7 @@ print("\n--- tray follows the controller ---")
 
 controller.recorder = _FakeRecorder(np.zeros(int(16000 * 0.1), dtype=np.float32))
 controller._on_hold_started()
-check(tray.state == "recording" and not tray.icon().isMask(), "controller recording -> red (colour) tray icon")
+check(tray.state == "recording" and tray._animation_timer.isActive(), "controller recording -> moving waveform tray icon")
 check(tray._state_action.text() == strings.status_line("recording"), "...with the recording status line")
 controller._on_hold_ended()
 check(tray.state == "ready", "controller back to ready -> tray ready")
@@ -612,7 +613,7 @@ bare_texts = ["-" if a.isSeparator() else a.text() for a in bare.contextMenu().a
 check(strings.status_line("ready") in bare_texts, "the status line is shown")
 check(not any(t.startswith("اضغط") for t in bare_texts), "no hotkey hint without settings")
 bare.set_status("recording")
-check(bare.state == "recording" and not bare.icon().isMask(), "set_status works on its own")
+check(bare.state == "recording" and bare._animation_timer.isActive(), "set_status works on its own")
 bare.set_status("ready")
 check(not bare._animation_timer.isActive(), "and stops its timer")
 

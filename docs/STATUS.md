@@ -2,6 +2,25 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-27 - Menu-bar waveform moves while recording; notch stays closed (owner's Mac, branch `notch-idle-passthrough`)
+**Area:** `saghi/ui/notch.py`, `saghi/ui/tray.py`, `dev/test_notch.py`, `dev/test_status_ui.py`, `README.md`.
+
+- **Owner's decision:** the notch must never open Saghi's window, and dictation should show in the existing menu-bar waveform icon instead of the notch. No new icon, no other changes.
+- **Change:** `notch._ISLAND_OPENS = False`: the island keeps its states (the controller reads them for the status) but never opens or draws. The tray's recording state uses the same `waveform` glyph cycling levels (0.45, 0.7, 1.0, 0.7) instead of the red `mic.fill`; processing and the rest are unchanged. A click on the notch never emits `open_requested`.
+- **Tests:** test_notch 45, test_status_ui 145, test_gui_smoke 120, test_sf_symbols 177 pass.
+- **Installed in place** on the owner's Mac (only `ui/notch.py` and `ui/tray.py` copied into the installed bundle, version file kept; backup in `~/.saghi-work/`). Not re-signed, so permissions stay. Owner dictated and confirmed the icon moves.
+- **Next:** release (owner's decision) so the in-app updater does not bring back the old notch.
+
+## 2026-11-27 - Idle notch lets the mouse through (owner's Mac, branch `notch-idle-passthrough`)
+**Area:** `saghi/ui/notch.py`, `dev/test_notch.py`, `README.md`.
+
+- **Problem:** while idle the island still sat over the notch with an input mask the size of the notch, so it caught hover and clicks there. Another notch app (the owner was trying one with a "Dynamic Island" card) could not be opened.
+- **Fix:** once the island is closed and its springs have settled it goes *dormant*: `NSWindow.ignoresMouseEvents = YES`, an empty input mask, and nothing painted. Any `show_*` call wakes it at once (mouse back on, same open animation). Recording, processing and error behave as before. A click while dormant never emits `open_requested`. The idle hover "grow" hint is gone with it.
+- **What replaces "click the notch to open Saghi":** the menu-bar icon's «فتح إعدادات صاغي» (already there). Clicking the open notch (error state) still opens the window. README updated (it also still said "no menu-bar icon").
+- **Proof on the owner's Mac** (repo code run with the installed app's Python, installed Saghi stopped meanwhile): accessibility hit-test at the notch centre (735, 8) after a synthetic hover. Before: the element is Saghi's window. After: the frontmost app's menu bar / window (Claude, TextEdit). Dictation (simulated Left Control tap): hit-test returns Saghi's window while recording and processing, the screenshot shows the open notch with the dots; after Esc or after the text is pasted it returns TextEdit again. Not proven: that the other notch app's card opens. Control run with Saghi fully quit: the same hover and click at the notch made no window of that app appear either, so its notch feature was not active (or does not react to synthetic events) at test time. The owner needs to try it by hand once.
+- **Tests:** test_notch 43 (8 new), test_status_ui 145, test_pill 158, test_new_options 116 pass.
+- Not merged, not released, not installed: the installed app still runs `main`.
+
 ## 2026-11-27 - freeze on stopping a recording + menu-bar icon back (owner's Mac, branch `fix/menubar-icon-and-stop-freeze`)
 **Area:** `saghi/recorder.py`, `saghi/ui/app.py`, `saghi/ui/tray.py`, `saghi/login_item.py`, `packaging/launcher/`, `packaging/install-saghi.command`, `.github/workflows/build-app.yml`, `dev/test_recorder_stop_timeout.py`, `dev/test_new_options.py`.
 
