@@ -2,6 +2,16 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-27 - Idle notch lets the mouse through (owner's Mac, branch `notch-idle-passthrough`)
+**Area:** `saghi/ui/notch.py`, `dev/test_notch.py`, `README.md`.
+
+- **Problem:** while idle the island still sat over the notch with an input mask the size of the notch, so it caught hover and clicks there. Another notch app (the owner was trying one with a "Dynamic Island" card) could not be opened.
+- **Fix:** once the island is closed and its springs have settled it goes *dormant*: `NSWindow.ignoresMouseEvents = YES`, an empty input mask, and nothing painted. Any `show_*` call wakes it at once (mouse back on, same open animation). Recording, processing and error behave as before. A click while dormant never emits `open_requested`. The idle hover "grow" hint is gone with it.
+- **What replaces "click the notch to open Saghi":** the menu-bar icon's «فتح إعدادات صاغي» (already there). Clicking the open notch (error state) still opens the window. README updated (it also still said "no menu-bar icon").
+- **Proof on the owner's Mac** (repo code run with the installed app's Python, installed Saghi stopped meanwhile): accessibility hit-test at the notch centre (735, 8) after a synthetic hover. Before: the element is Saghi's window. After: the frontmost app's menu bar / window (Claude, TextEdit). Dictation (simulated Left Control tap): hit-test returns Saghi's window while recording and processing, the screenshot shows the open notch with the dots; after Esc or after the text is pasted it returns TextEdit again. The other notch app had no notch window on screen during the test, so its own card opening was not observed directly.
+- **Tests:** test_notch 43 (8 new), test_status_ui 145, test_pill 158, test_new_options 116 pass.
+- Not merged, not released, not installed: the installed app still runs `main`.
+
 ## 2026-11-27 - freeze on stopping a recording + menu-bar icon back (owner's Mac, branch `fix/menubar-icon-and-stop-freeze`)
 **Area:** `saghi/recorder.py`, `saghi/ui/app.py`, `saghi/ui/tray.py`, `saghi/login_item.py`, `packaging/launcher/`, `packaging/install-saghi.command`, `.github/workflows/build-app.yml`, `dev/test_recorder_stop_timeout.py`, `dev/test_new_options.py`.
 

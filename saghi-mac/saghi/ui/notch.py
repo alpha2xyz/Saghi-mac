@@ -5,8 +5,9 @@ One black shape fused to the top edge of the screen. At rest it is exactly
 the hardware notch (so it is invisible); when dictation starts it springs
 open a little wider and a 40 pt strip taller, and shows what is happening:
 
-  hidden      closed (the notch itself). Hover: grows a touch, as a hint that
-              it can be clicked; a click emits `open_requested` (open Saghi).
+  hidden      closed and dormant: nothing is drawn and the window ignores the
+              mouse, so other notch apps (and the menu bar) get every hover and
+              click there. Saghi's window opens from the menu-bar icon instead.
   recording   open; a row of dots that scroll left at a constant pace, one
               slot every 0.2 s. Each slot becomes a bar as tall as the voice
               was loud in that 0.2 s (growing in over 0.12 s). Silence stays a
@@ -38,7 +39,10 @@ WINDOW: a fixed-size frameless, translucent, non-activating Qt.Tool window at
 NSStatusWindowLevel (above the menu bar), on every Space and over full-screen
 apps (macos_panel.pin_floating). The input mask is updated to the drawn shape
 every frame, so the transparent rest of the window never eats clicks meant
-for the menu bar or the app below.
+for the menu bar or the app below. Once closed and settled the island goes
+dormant: NSWindow.ignoresMouseEvents is set and nothing is painted, so the
+notch belongs to whatever other app wants it until dictation starts again.
+While open (recording, processing, error) hover and click work as before.
 """
 
 from __future__ import annotations
@@ -277,6 +281,7 @@ class NotchIsland(QWidget):
         self._label_op = _Fade(0.0)
         self._shimmer_t0 = 0.0
         self._open = False
+        self._dormant = True  # closed and settled: draws nothing, mouse passes through
         self._last = self._clock()
 
         # waveform bookkeeping
@@ -357,6 +362,32 @@ class NotchIsland(QWidget):
         if macos_panel.pin_floating(self):
             logger.info("Notch island pinned (notch %.0fx%.0f, real notch: %s)", self._notch_w, self._notch_h, self._has_notch)
         self._move_native()
+        self._apply_passthrough()
+
+    def _apply_passthrough(self) -> None:
+        """Dormant: the native window lets every mouse event through to what is below."""
+        if not macos_glass.platform_ok() or not self.isVisible():
+            return
+        try:
+            win = macos_glass._ns_window(self)
+            if win is not None and bool(win.ignoresMouseEvents()) != self._dormant:
+                win.setIgnoresMouseEvents_(self._dormant)
+        except Exception:  # noqa: BLE001
+            logger.debug("Could not set the island's mouse pass-through", exc_info=True)
+
+    def _set_dormant(self, value: bool) -> None:
+        if value != self._dormant:
+            self._dormant = value
+            if value:
+                self._hover.set(0.0, _HOVER_K, _HOVER_C)
+                self._hover.x, self._hover.v = 0.0, 0.0
+            self._apply_passthrough()
+            self._update_mask()
+            self.update()
+
+    @property
+    def dormant(self) -> bool:
+        return self._dormant
 
     def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
         super().showEvent(event)
@@ -397,7 +428,7 @@ class NotchIsland(QWidget):
 
     def _update_mask(self) -> None:
         path, x0, w, h, _r, vis = self._shape()
-        if vis <= 0.01:
+        if vis <= 0.01 or self._dormant:
             # nothing drawn: a 1px region keeps the window alive but click-through
             self.setMask(QRegion(0, 0, 1, 1))
             return
@@ -518,6 +549,8 @@ class NotchIsland(QWidget):
 
     # ------------------------------------------------------------ internals
     def _set_open(self, value: bool, now: float) -> None:
+        if value:
+            self._set_dormant(False)
         if value != self._open:
             self._open = value
             if value:
@@ -587,6 +620,7 @@ class NotchIsland(QWidget):
         )
         if idle:
             self._timer.stop()
+            self._set_dormant(True)
 
     # ------------------------------------------------------------ events
     def enterEvent(self, event) -> None:  # noqa: N802
@@ -600,7 +634,7 @@ class NotchIsland(QWidget):
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and not self._dormant:
             self.open_requested.emit()
         super().mouseReleaseEvent(event)
 
@@ -610,7 +644,7 @@ class NotchIsland(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         path, x0, w, h, _r, vis = self._shape()
-        if vis <= 0.001:
+        if vis <= 0.001 or self._dormant:
             return
         painter.setOpacity(vis)
         black = QColor(0, 0, 0)

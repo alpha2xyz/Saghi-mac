@@ -4,7 +4,7 @@
 
 Free Arabic voice typing for Apple-silicon Macs. It runs fully offline, on your Mac. Your voice never leaves the device.
 
-Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into clean text and pastes it where you were typing. It lives in your Mac's notch: no window in the way, no menu-bar icon.
+Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into clean text and pastes it where you were typing. It lives in your Mac's notch and a small menu-bar icon: no window in the way.
 
 <p align="center">
 <img src="saghi-mac/dev/screenshots/notch-recording.png" width="300" alt="The notch while Saghi listens">
@@ -60,7 +60,7 @@ The **History** page keeps what you dictated. You can search it, copy, export an
 
 ### The notch
 
-Saghi sits in the notch at the top of the screen and is invisible until you dictate. When you start, the notch springs open and a row of dots scrolls along: each dot grows into a bar as loud as your voice was at that moment, and stays a flat dot in silence. When you stop it shows "processing", then folds back into the notch. Click the notch to open Saghi's window. On Macs without a notch the same shape appears at the top centre only while you dictate.
+Saghi sits in the notch at the top of the screen and is invisible until you dictate. When you start, the notch springs open and a row of dots scrolls along: each dot grows into a bar as loud as your voice was at that moment, and stays a flat dot in silence. When you stop it shows "processing", then folds back into the notch. While idle it draws nothing and lets every click and hover through, so other notch apps keep working; open Saghi's window from its menu-bar icon (or click the notch while it is open). On Macs without a notch the same shape appears at the top centre only while you dictate.
 
 Saghi plays its own soft sounds when recording starts, stops, or is thrown away (you can turn them off).
 
@@ -111,7 +111,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 كتابة صوتية عربية مجانية لأجهزة Mac بمعالج Apple silicon. تعمل بالكامل دون إنترنت وعلى جهازك، وصوتك لا يغادر الجهاز.
 
-اضغط الاختصار مرة، تكلّم بالعربية، ثم اضغطه مرة ثانية. يحوّل Saghi-mac كلامك إلى نص منظّف ويلصقه في مكان الكتابة. ويعيش في النوتش أعلى شاشة الماك: لا نافذة تزاحمك، ولا أيقونة في شريط القوائم.
+اضغط الاختصار مرة، تكلّم بالعربية، ثم اضغطه مرة ثانية. يحوّل Saghi-mac كلامك إلى نص منظّف ويلصقه في مكان الكتابة. ويعيش في النوتش أعلى شاشة الماك وأيقونة صغيرة في شريط القوائم: لا نافذة تزاحمك.
 
 ## المتطلبات
 
@@ -160,7 +160,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 ### النوتش
 
-يجلس صاغي في النوتش أعلى الشاشة ولا يظهر حتى تبدأ الإملاء. لما تبدأ، ينفتح النوتش بحركة نابضة ويظهر صف نقاط يمشي: كل نقطة تكبر لعمود بقدر علوّ صوتك في تلك اللحظة، وتبقى نقطة ساكنة في الصمت. لما توقف يكتب "جارٍ المعالجة" ثم يرجع لشكل النوتش. اضغط على النوتش لفتح نافذة صاغي. وفي الأجهزة اللي بدون نوتش يظهر نفس الشكل أعلى الشاشة بالنص أثناء الإملاء فقط.
+يجلس صاغي في النوتش أعلى الشاشة ولا يظهر حتى تبدأ الإملاء. لما تبدأ، ينفتح النوتش بحركة نابضة ويظهر صف نقاط يمشي: كل نقطة تكبر لعمود بقدر علوّ صوتك في تلك اللحظة، وتبقى نقطة ساكنة في الصمت. لما توقف يكتب "جارٍ المعالجة" ثم يرجع لشكل النوتش. وهو خامل ما يرسم شي ويمرّر كل ضغطة ومرور ماوس، فتشتغل تطبيقات النوتش الثانية عادي. افتح نافذة صاغي من أيقونته في شريط القوائم (أو اضغط على النوتش وهو مفتوح). وفي الأجهزة اللي بدون نوتش يظهر نفس الشكل أعلى الشاشة بالنص أثناء الإملاء فقط.
 
 لصاغي أصوات خفيفة خاصة به عند بدء التسجيل وإيقافه وإلغائه (يمكنك إطفاؤها).
 

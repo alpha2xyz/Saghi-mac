@@ -127,6 +127,26 @@ ev = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10
 isl.mouseReleaseEvent(ev)
 check(clicked == [1], "a click asks to open Saghi")
 
+# idle = dormant: nothing drawn, mouse passes through to other notch apps
+check(not isl.dormant, "open (error) is not dormant")
+isl.hide_indicator()  # the error timer runs on the real clock
+run(2.0)
+check(isl.state == "hidden" and isl.dormant, "closed and settled goes dormant")
+img = QImage(isl.size(), QImage.Format.Format_ARGB32)
+img.fill(QColor(0, 0, 0, 0))
+isl.render(img)
+check(all(img.pixelColor(x, y).alpha() == 0 for x in range(0, img.width(), 4) for y in range(0, img.height(), 4)), "dormant island paints nothing")
+check(isl.mask().boundingRect().width() <= 1, "dormant mask is empty")
+isl.mouseReleaseEvent(ev)
+check(clicked == [1], "a click while dormant does not open Saghi")
+isl.show_recording(silence)
+check(not isl.dormant, "dictation wakes the island at once")
+run(0.6)
+check(isl._shape()[3] > isl._notch_h + 30, "and it opens as before")
+isl.hide_indicator()
+run(2.0)
+check(isl.dormant, "dormant again after dictation")
+
 # drop-in API used by ui/dictation.py
 for name in ("set_style", "set_color", "set_idle_mode", "set_glass_enabled", "set_anchor", "set_idle_status", "place_top", "place_bottom", "anchor"):
     check(callable(getattr(isl, name, None)), f"has {name}")
