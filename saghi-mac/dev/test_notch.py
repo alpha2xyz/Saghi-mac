@@ -125,7 +125,7 @@ from PySide6.QtGui import QMouseEvent  # noqa: E402
 
 ev = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
 isl.mouseReleaseEvent(ev)
-check(clicked == [1], "a click asks to open Saghi")
+check(clicked == [], "a click on the open island never opens Saghi")
 
 # idle = dormant: nothing drawn, mouse passes through to other notch apps
 check(not isl.dormant, "open (error) is not dormant")
@@ -138,7 +138,7 @@ isl.render(img)
 check(all(img.pixelColor(x, y).alpha() == 0 for x in range(0, img.width(), 4) for y in range(0, img.height(), 4)), "dormant island paints nothing")
 check(isl.mask().boundingRect().width() <= 1, "dormant mask is empty")
 isl.mouseReleaseEvent(ev)
-check(clicked == [1], "a click while dormant does not open Saghi")
+check(clicked == [], "a click while dormant does not open Saghi")
 isl.show_recording(silence)
 check(not isl.dormant, "dictation wakes the island at once")
 run(0.6)

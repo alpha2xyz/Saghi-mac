@@ -60,7 +60,7 @@ The **History** page keeps what you dictated. You can search it, copy, export an
 
 ### The notch
 
-Saghi sits in the notch at the top of the screen and is invisible until you dictate. When you start, the notch springs open and a row of dots scrolls along: each dot grows into a bar as loud as your voice was at that moment, and stays a flat dot in silence. When you stop it shows "processing", then folds back into the notch. While idle it draws nothing and lets every click and hover through, so other notch apps keep working; open Saghi's window from its menu-bar icon (or click the notch while it is open). On Macs without a notch the same shape appears at the top centre only while you dictate.
+Saghi sits in the notch at the top of the screen and is invisible until you dictate. When you start, the notch springs open and a row of dots scrolls along: each dot grows into a bar as loud as your voice was at that moment, and stays a flat dot in silence. When you stop it shows "processing", then folds back into the notch. While idle it draws nothing and lets every click and hover through, so other notch apps keep working; Clicking the notch never opens Saghi's window; open it from the menu-bar icon. On Macs without a notch the same shape appears at the top centre only while you dictate.
 
 Saghi plays its own soft sounds when recording starts, stops, or is thrown away (you can turn them off).
 
@@ -160,7 +160,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 ### النوتش
 
-يجلس صاغي في النوتش أعلى الشاشة ولا يظهر حتى تبدأ الإملاء. لما تبدأ، ينفتح النوتش بحركة نابضة ويظهر صف نقاط يمشي: كل نقطة تكبر لعمود بقدر علوّ صوتك في تلك اللحظة، وتبقى نقطة ساكنة في الصمت. لما توقف يكتب "جارٍ المعالجة" ثم يرجع لشكل النوتش. وهو خامل ما يرسم شي ويمرّر كل ضغطة ومرور ماوس، فتشتغل تطبيقات النوتش الثانية عادي. افتح نافذة صاغي من أيقونته في شريط القوائم (أو اضغط على النوتش وهو مفتوح). وفي الأجهزة اللي بدون نوتش يظهر نفس الشكل أعلى الشاشة بالنص أثناء الإملاء فقط.
+يجلس صاغي في النوتش أعلى الشاشة ولا يظهر حتى تبدأ الإملاء. لما تبدأ، ينفتح النوتش بحركة نابضة ويظهر صف نقاط يمشي: كل نقطة تكبر لعمود بقدر علوّ صوتك في تلك اللحظة، وتبقى نقطة ساكنة في الصمت. لما توقف يكتب "جارٍ المعالجة" ثم يرجع لشكل النوتش. وهو خامل ما يرسم شي ويمرّر كل ضغطة ومرور ماوس، فتشتغل تطبيقات النوتش الثانية عادي. الضغط على النوتش ما يفتح نافذة صاغي أبداً، افتحها من أيقونته في شريط القوائم. وفي الأجهزة اللي بدون نوتش يظهر نفس الشكل أعلى الشاشة بالنص أثناء الإملاء فقط.
 
 لصاغي أصوات خفيفة خاصة به عند بدء التسجيل وإيقافه وإلغائه (يمكنك إطفاؤها).
 

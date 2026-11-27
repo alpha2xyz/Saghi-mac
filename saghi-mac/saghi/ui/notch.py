@@ -7,7 +7,8 @@ open a little wider and a 40 pt strip taller, and shows what is happening:
 
   hidden      closed and dormant: nothing is drawn and the window ignores the
               mouse, so other notch apps (and the menu bar) get every hover and
-              click there. Saghi's window opens from the menu-bar icon instead.
+              click there. The island never opens Saghi's window (in any
+              state).
   recording   open; a row of dots that scroll left at a constant pace, one
               slot every 0.2 s. Each slot becomes a bar as tall as the voice
               was loud in that 0.2 s (growing in over 0.12 s). Silence stays a
@@ -42,7 +43,8 @@ every frame, so the transparent rest of the window never eats clicks meant
 for the menu bar or the app below. Once closed and settled the island goes
 dormant: NSWindow.ignoresMouseEvents is set and nothing is painted, so the
 notch belongs to whatever other app wants it until dictation starts again.
-While open (recording, processing, error) hover and click work as before.
+While open (recording, processing, error) it takes the mouse over its shape,
+but a click never opens Saghi's window.
 """
 
 from __future__ import annotations
@@ -262,7 +264,7 @@ def notch_geometry() -> Tuple[float, float, float, bool]:
 
 class NotchIsland(QWidget):
     state_changed = Signal(str)
-    open_requested = Signal()  # the user clicked the island: open Saghi's window
+    open_requested = Signal()  # never emitted: the island does not open the window
     anchor_moved = Signal(int, int)  # never emitted (the island does not move)
     mode_change_requested = Signal(str)  # never emitted
 
@@ -315,7 +317,6 @@ class NotchIsland(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
         self.setMouseTracking(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self._label_font = QFont()
         self._label_font.setPointSizeF(_LABEL_PT)
@@ -634,8 +635,7 @@ class NotchIsland(QWidget):
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton and not self._dormant:
-            self.open_requested.emit()
+        # The island only shows dictation; it never opens Saghi's window.
         super().mouseReleaseEvent(event)
 
     # ------------------------------------------------------------ painting
