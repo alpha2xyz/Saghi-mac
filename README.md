@@ -4,11 +4,10 @@
 
 Free Arabic voice typing for Apple-silicon Macs. It runs fully offline, on your Mac. Your voice never leaves the device.
 
-Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into clean text and pastes it where you were typing. It lives in your Mac's notch and a small menu-bar icon: no window in the way.
+Tap your shortcut, speak Arabic, tap it again. Saghi-mac turns your speech into clean text and pastes it where you were typing. It lives in a small menu-bar icon: no window in the way.
 
 <p align="center">
-<img src="saghi-mac/dev/screenshots/notch-recording.png" width="300" alt="The notch while Saghi listens">
-<img src="saghi-mac/dev/screenshots/notch-processing.png" width="300" alt="The notch while Saghi writes">
+<img src="saghi-mac/dev/screenshots/menubar-recording.gif" width="200" alt="The menu-bar icon while Saghi listens">
 </p>
 
 ![Saghi-mac home window](saghi-mac/dev/screenshots/window-home.png)
@@ -58,9 +57,9 @@ Open **Settings, App, Transcribe an audio file** to transcribe audio or video fi
 
 The **History** page keeps what you dictated. You can search it, copy, export an entry as a text file, delete one entry, or clear everything from Settings, App. Settings can also delete entries older than 7, 30 or 90 days automatically.
 
-### The notch
+### The menu-bar icon
 
-Saghi sits in the notch at the top of the screen and is invisible until you dictate. When you start, the notch springs open and a row of dots scrolls along: each dot grows into a bar as loud as your voice was at that moment, and stays a flat dot in silence. When you stop it shows "processing", then folds back into the notch. While idle it draws nothing and lets every click and hover through, so other notch apps keep working; Clicking the notch never opens Saghi's window; open it from the menu-bar icon. On Macs without a notch the same shape appears at the top centre only while you dictate.
+Saghi's waveform icon sits in the menu bar. While you dictate the waveform moves; while Saghi writes it keeps moving; then it goes still again. The notch stays closed and free for other apps, and clicking it does nothing for Saghi. Open Saghi's window from the menu-bar icon.
 
 Saghi plays its own soft sounds when recording starts, stops, or is thrown away (you can turn them off).
 
@@ -72,7 +71,7 @@ Saghi plays its own soft sounds when recording starts, stops, or is thrown away 
 - **Settings,** split into **Dictation** (shortcut, tap-to-toggle, microphone, language, sounds, auto-paste), **Text** (clean-up level, optional rewrite) and **App** (launch at login, font, history, updates, file transcription, quit).
 - **History:** everything you dictated, searchable.
 
-The sidebar shows a blue **Local, no internet** dot and a green **Ready to dictate** dot. Closing the window only hides it; Saghi keeps running in the notch. There is no Dock icon.
+The sidebar shows a blue **Local, no internet** dot and a green **Ready to dictate** dot. Closing the window only hides it; Saghi keeps running in the menu bar. There is no Dock icon.
 
 Your data lives in `~/Library/Application Support/Saghi/`. A local API listens on `127.0.0.1:17865` only, never on the network.
 
@@ -111,7 +110,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 كتابة صوتية عربية مجانية لأجهزة Mac بمعالج Apple silicon. تعمل بالكامل دون إنترنت وعلى جهازك، وصوتك لا يغادر الجهاز.
 
-اضغط الاختصار مرة، تكلّم بالعربية، ثم اضغطه مرة ثانية. يحوّل Saghi-mac كلامك إلى نص منظّف ويلصقه في مكان الكتابة. ويعيش في النوتش أعلى شاشة الماك وأيقونة صغيرة في شريط القوائم: لا نافذة تزاحمك.
+اضغط الاختصار مرة، تكلّم بالعربية، ثم اضغطه مرة ثانية. يحوّل Saghi-mac كلامك إلى نص منظّف ويلصقه في مكان الكتابة. ويعيش في أيقونة صغيرة في شريط القوائم: لا نافذة تزاحمك.
 
 ## المتطلبات
 
@@ -158,9 +157,9 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 
 صفحة **السجل** تحفظ ما أمليته. يمكنك البحث فيه، ونسخ نص، وتصديره كملف نصي، وحذف نص واحد، أو مسح السجل كله من الإعدادات ثم التطبيق. ويمكن للإعدادات أيضًا حذف النصوص الأقدم من 7 أو 30 أو 90 يومًا تلقائيًا.
 
-### النوتش
+### أيقونة شريط القوائم
 
-يجلس صاغي في النوتش أعلى الشاشة ولا يظهر حتى تبدأ الإملاء. لما تبدأ، ينفتح النوتش بحركة نابضة ويظهر صف نقاط يمشي: كل نقطة تكبر لعمود بقدر علوّ صوتك في تلك اللحظة، وتبقى نقطة ساكنة في الصمت. لما توقف يكتب "جارٍ المعالجة" ثم يرجع لشكل النوتش. وهو خامل ما يرسم شي ويمرّر كل ضغطة ومرور ماوس، فتشتغل تطبيقات النوتش الثانية عادي. الضغط على النوتش ما يفتح نافذة صاغي أبداً، افتحها من أيقونته في شريط القوائم. وفي الأجهزة اللي بدون نوتش يظهر نفس الشكل أعلى الشاشة بالنص أثناء الإملاء فقط.
+أيقونة الموجة حقت صاغي تجلس في شريط القوائم. وأنت تملي تتحرك الموجة، ولما صاغي يكتب تكمّل حركتها، وبعدها ترجع ثابتة. النوتش يبقى مقفول وفاضي للتطبيقات الثانية، والضغط عليه ما يسوي شي لصاغي. افتح نافذة صاغي من أيقونته في شريط القوائم.
 
 لصاغي أصوات خفيفة خاصة به عند بدء التسجيل وإيقافه وإلغائه (يمكنك إطفاؤها).
 
@@ -170,7 +169,7 @@ MIT. See [LICENSE](LICENSE). The model and third-party libraries keep their own 
 - **الإعدادات** مقسمة إلى **الإملاء** (الاختصار، الضغط مرة يبدأ ويوقف، الميكروفون، اللغة، الأصوات، اللصق التلقائي)، و**النص** (مستوى التنظيف، وإعادة الصياغة الاختيارية)، و**التطبيق** (التشغيل عند بدء الجهاز، الخط، السجل، التحديثات، تفريغ ملف صوتي، إنهاء صاغي).
 - **السجل:** كل ما أمليته، مع البحث.
 
-في الشريط الجانبي نقطة زرقاء **محلي، بدون إنترنت** ونقطة خضراء **جاهز للإملاء**. إغلاق النافذة يخفيها فقط، ويبقى صاغي شغّال في النوتش. ولا توجد أيقونة في الـ Dock.
+في الشريط الجانبي نقطة زرقاء **محلي، بدون إنترنت** ونقطة خضراء **جاهز للإملاء**. إغلاق النافذة يخفيها فقط، ويبقى صاغي شغّال في شريط القوائم. ولا توجد أيقونة في الـ Dock.
 
 بياناتك في `~/Library/Application Support/Saghi/`. واجهة API محلية تعمل على `127.0.0.1:17865` فقط، ولا تستمع لأي اتصال من الشبكة.
 

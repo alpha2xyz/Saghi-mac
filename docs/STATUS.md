@@ -2,6 +2,15 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-27 - Menu-bar waveform moves while recording; notch stays closed (owner's Mac, branch `notch-idle-passthrough`)
+**Area:** `saghi/ui/notch.py`, `saghi/ui/tray.py`, `dev/test_notch.py`, `dev/test_status_ui.py`, `README.md`.
+
+- **Owner's decision:** the notch must never open Saghi's window, and dictation should show in the existing menu-bar waveform icon instead of the notch. No new icon, no other changes.
+- **Change:** `notch._ISLAND_OPENS = False`: the island keeps its states (the controller reads them for the status) but never opens or draws. The tray's recording state uses the same `waveform` glyph cycling levels (0.45, 0.7, 1.0, 0.7) instead of the red `mic.fill`; processing and the rest are unchanged. A click on the notch never emits `open_requested`.
+- **Tests:** test_notch 45, test_status_ui 145, test_gui_smoke 120, test_sf_symbols 177 pass.
+- **Installed in place** on the owner's Mac (only `ui/notch.py` and `ui/tray.py` copied into the installed bundle, version file kept; backup in `~/.saghi-work/`). Not re-signed, so permissions stay. Owner dictated and confirmed the icon moves.
+- **Next:** release (owner's decision) so the in-app updater does not bring back the old notch.
+
 ## 2026-11-27 - Idle notch lets the mouse through (owner's Mac, branch `notch-idle-passthrough`)
 **Area:** `saghi/ui/notch.py`, `dev/test_notch.py`, `README.md`.
 
