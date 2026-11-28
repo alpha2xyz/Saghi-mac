@@ -2,6 +2,14 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-28 - Light updates no longer break the app signature (branch `fix/resign-after-update`)
+**Area:** `saghi/bundle_sign.py` (new), `saghi/updater.py`, `dev/install_local.sh`, `packaging/install-saghi.command`, `.github/workflows/build-app.yml`, `dev/test_bundle_sign.py`.
+
+- **Cause:** the v0.3.3 light update rewrote `saghi/` and Info.plist inside the ad-hoc signed Saghi.app, so `codesign --verify` failed ("invalid Info.plist"). macOS then silently denied Microphone (silent recordings), Accessibility and Input Monitoring. Re-signing was blocked because `venv/bin/python3.12` is an absolute symlink (made by `python -m venv` in the installer).
+- **Fix:** `bundle_sign.resign(app)` makes absolute in-bundle symlinks relative, runs `codesign --force -s -`, then `codesign --verify --strict`, and logs a clear WARNING if it fails. Called after every light update, by `install_local.sh`, and at the end of the installer. CI now fails if the installed app's venv symlink is absolute or the signature does not verify.
+- **Tests:** new test_bundle_sign (codesign mocked) passes; test_new_options 116 pass.
+- **Next:** merge, release; after the first light update check `codesign --verify --deep --strict` on the owner's Mac. Machines already broken need one `tccutil reset` and re-granting permissions.
+
 ## 2026-11-28 - Update rolled back the in-place fixes; one install path, repo tidied (owner's Mac, branch `housekeeping/install-local`)
 **Area:** `saghi-mac/dev/install_local.sh`, `CLAUDE.md`, branches and tags.
 
