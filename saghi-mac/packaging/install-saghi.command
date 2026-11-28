@@ -188,6 +188,10 @@ fi
 say "3) تثبيت المكتبات (بدون إنترنت، من الحزمة المرفقة)..."
 "$VENV_DIR/bin/pip" install --no-index --find-links "$BUNDLE_DIR/wheels" \
   -r "$BUNDLE_DIR/requirements-arm64.txt" --quiet
+# venv/bin/python3.12 is an absolute symlink; make it relative and re-sign the app,
+# or macOS silently drops the microphone and keyboard permissions.
+PYTHONPATH="$RES_DIR/app" "$VENV_DIR/bin/$PY_BIN_NAME" -m saghi.bundle_sign "$APP_DIR" \
+  || say "   تحذير: توقيع التطبيق غير سليم."
 say "   تم."
 
 # ---- 4. optional launch-at-login ----------------------------------------

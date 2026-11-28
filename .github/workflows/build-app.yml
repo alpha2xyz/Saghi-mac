@@ -149,6 +149,9 @@ jobs:
           test ! -e "$RES/model" || { echo "old PyTorch model folder still present" >&2; exit 1; }
           if "$RES/venv/bin/python3.12" -c "import torch" 2>/dev/null; then echo "torch is installed but should not be" >&2; exit 1; fi
           du -sh "$APP"
+          # Absolute in-bundle symlinks block re-signing; a broken signature makes macOS drop permissions.
+          case "$(readlink "$RES/venv/bin/python3.12")" in /*) echo "venv python symlink is absolute" >&2; exit 1;; esac
+          codesign --verify --strict "$APP" || { echo "installed app signature does not verify" >&2; exit 1; }
           df -h /
 
       - name: Start local API and check health (hard failure)

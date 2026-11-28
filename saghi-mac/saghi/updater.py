@@ -345,6 +345,7 @@ def apply_light(prepared: PreparedUpdate, target: Optional[Path] = None) -> Path
         os.replace(backup, target)
         raise UpdateError(f"could not install the new files ({exc})") from exc
     _set_bundle_version(prepared.version)
+    _resign_bundle()
     shutil.rmtree(prepared.workdir, ignore_errors=True)
     logger.info("Light update to %s installed (backup: %s)", prepared.version, backup)
     return backup
@@ -365,6 +366,18 @@ def _set_bundle_version(version: str) -> None:
             plistlib.dump(data, f)
     except Exception:  # noqa: BLE001
         logger.debug("Could not update Info.plist version", exc_info=True)
+
+
+def _resign_bundle() -> None:
+    """Changed files break the bundle signature, and macOS then drops the app's permissions silently."""
+    resources = paths.app_resources_dir()
+    if resources is None:
+        return
+    from . import bundle_sign
+    try:
+        bundle_sign.resign(resources.parent.parent)
+    except Exception:  # noqa: BLE001
+        logger.warning("WARNING: could not re-sign the app after the update", exc_info=True)
 
 
 def _spawn_after_exit(command: List[str]) -> None:

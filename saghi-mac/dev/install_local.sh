@@ -38,6 +38,9 @@ cp -R "$PKG" "$PKG.previous"
 rsync -a --delete --exclude __pycache__ "$TMP/saghi-mac/saghi/" "$PKG/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
   -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist" || true
+# Changed files break the signature; macOS would then drop the mic/keyboard permissions.
+PYTHONPATH="$APP/Contents/Resources/app" "$APP/Contents/Resources/venv/bin/python3.12" \
+  -m saghi.bundle_sign "$APP" || echo "WARNING: app signature does not verify" >&2
 
 echo "Installed origin/main $SHA as version $VERSION"
 if [ "${1:-}" = "--restart" ]; then
