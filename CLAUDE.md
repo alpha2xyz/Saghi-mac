@@ -5,6 +5,7 @@ Offline Arabic voice typing for Apple-silicon Macs (Python 3.12, PySide6, FastAP
 ## Ground rules (from the owner)
 - **The repo is the only home for work files.** Notes, logs, reports, test results, plans: commit them here. Nothing work-related may stay only on a Mac or inside one session. The owner works from any device.
 - **A Mac is only a test machine.** Use `saghi-mac/dev/mac_session.sh` (start → mic/model/app/tests → report → clean). It works in `~/.saghi-work/`, reuses the installed app's Python and model, and `clean` deletes the folder once everything is pushed. Don't install anything on the Mac outside that folder.
+- **Installing fixes on the owner's Mac before a release:** only `saghi-mac/dev/install_local.sh --restart` (installs origin/main, stamps a version so the updater never rolls it back). Never copy files into Saghi.app by hand. Old work is kept as `archive/*` tags, not branches.
 - The model (~4 GB) is never committed; it lives in the `model-v1` GitHub release.
 - **This repo is PUBLIC.** Notes, logs and tests must not carry personal details: no device or phone names, no home paths, emails or keys. Write "the owner's Mac" / "the owner's iPhone". Before every push run `bash ~/.claude/skills/new-project/scripts/check-repo.sh --public` from the repo root (on the owner's Mac) and fix what it lists.
 - **Before ending a session, update `docs/STATUS.md`** (what you tried, result, next step) and push.

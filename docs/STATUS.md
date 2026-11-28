@@ -2,6 +2,15 @@
 
 Newest first. Every session adds an entry before it ends.
 
+## 2026-11-28 - Update rolled back the in-place fixes; one install path, repo tidied (owner's Mac, branch `housekeeping/install-local`)
+**Area:** `saghi-mac/dev/install_local.sh`, `CLAUDE.md`, branches and tags.
+
+- **Problem:** the notch/menu-bar fixes were installed in place with the version file kept at 0.3.2, so at 10:05 the app's updater installed GitHub's 0.3.3 over them (0.3.3 is older than main: PR #13 was merged after it).
+- **Fix:** new `dev/install_local.sh` installs only `origin/main` and stamps the version `<last release>.<commits since>` (now 0.3.3.8). That sorts above the last release and below the next one, so an older release can never be offered again, and the next real release replaces it normally. Installed and restarted; installed `saghi/` equals main. **All in-place installs go through this script from now on.**
+- **Tidy-up:** unmerged branches kept as tags `archive/notch-ui`, `archive/gguf-engine-v2`, `archive/idle-unload`, `archive/dock-reopen-shows-window`; every branch except `main` deleted (local and GitHub); the extra worktrees (release folder, two `.claude/worktrees`) removed. Old backups, patches, old installers and the stale untracked `_version.py` moved to an archive folder outside the repo.
+- **Seen, not caused here:** the log says Input Monitoring is missing (also at 10:06 before this change); the shortcut may need it granted again.
+- **Next:** next release (v0.3.4) from main when the owner wants.
+
 ## 2026-11-27 - Menu-bar waveform moves while recording; notch stays closed (owner's Mac, branch `notch-idle-passthrough`)
 **Area:** `saghi/ui/notch.py`, `saghi/ui/tray.py`, `dev/test_notch.py`, `dev/test_status_ui.py`, `README.md`.
 
